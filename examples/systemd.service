@@ -1,0 +1,17 @@
+[Unit]
+Description=Prometheus photo backlog exporter
+Documentation=https://github.com/iustin/photo-backlog-exporter
+After=network.target
+
+[Service]
+DynamicUser=true
+User=photo-backlog
+Group=photo-backlog
+SupplementaryGroups=photos
+ProtectHome=tmpfs
+Restart=on-failure
+EnvironmentFile=/etc/default/prometheus-photo-backlog-exporter
+ExecStart=/usr/local/bin/photo-backlog-exporter $ARGS
+
+[Install]
+WantedBy=multi-user.target

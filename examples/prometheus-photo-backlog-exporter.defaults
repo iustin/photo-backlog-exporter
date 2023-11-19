@@ -1,0 +1,3 @@
+ARGS="-l 0.0.0.0 -p 8812 -a 1,2,3,4.348,8.714,13,26,52,104 -P /my/incoming/photo/directory"
+RUST_LOG="info"
+RUST_LOG_SYSTEMD=yes
