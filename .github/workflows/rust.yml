@@ -5,6 +5,11 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+  # Weekly run to account for
+  # changed dependencies.
+  schedule:
+    - cron: '17 03 * * 0'
 
 env:
   CARGO_TERM_COLOR: always
