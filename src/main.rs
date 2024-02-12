@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
 use std::num::ParseFloatError;
+use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::AtomicU64;
@@ -76,6 +77,12 @@ struct CliOptions {
         no_multi
     )]
     age_buckets: Vec<f64>,
+
+    #[options(help = "Owner expected for all files", required)]
+    owner: u32,
+
+    #[options(help = "Group expected for all files", required)]
+    group: u32,
 }
 
 #[derive(Debug)]
@@ -83,6 +90,8 @@ struct PhotoBacklogCollector {
     scan_path: PathBuf,
     ignored_exts: Vec<OsString>,
     age_buckets: Vec<f64>,
+    owner: u32,
+    group: u32,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -150,6 +159,23 @@ impl Collector for PhotoBacklogCollector {
                 }
                 Ok(entry) => {
                     if entry.file_type().is_dir() {
+                        match entry.metadata() {
+                            Ok(m) => {
+                                if m.uid() != self.owner || m.gid() != self.group {
+                                    info!(
+                                        "Directory {} has wrong owner:group {}:{}",
+                                        entry.path().display(),
+                                        m.uid(),
+                                        m.gid()
+                                    );
+                                    total_errors += 1;
+                                }
+                            }
+                            Err(e) => {
+                                info!("Can't stat directory {}: {}", entry.path().display(), e);
+                                total_errors += 1;
+                            }
+                        }
                         // We don't track directories by themselves,
                         // only via file contents.
                         continue;
@@ -357,6 +383,8 @@ async fn main() -> Result<(), String> {
         scan_path: path,
         ignored_exts: opts.ignored_exts,
         age_buckets: opts.age_buckets,
+        owner: opts.owner,
+        group: opts.group,
     });
     registry.register_collector(collector);
     let r2 = Arc::new(registry);
