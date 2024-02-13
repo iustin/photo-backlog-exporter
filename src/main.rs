@@ -119,20 +119,6 @@ struct ErrorLabels {
     kind: ErrorType,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-enum ErrorType {
-    Scan,
-}
-
-impl EncodeLabelValue for ErrorType {
-    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
-        let s = match self {
-            ErrorType::Scan => "scan",
-        };
-        EncodeLabelValue::encode(&s, encoder)
-    }
-}
-
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct FolderLabels {
     path: String,

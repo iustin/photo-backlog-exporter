@@ -2,6 +2,8 @@ use std::option::Option;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use prometheus_client::encoding::{EncodeLabelValue, LabelValueEncoder};
+
 /// Returns the first directory from a given path.
 /// Example:
 /// ```
@@ -46,4 +48,18 @@ pub fn relative_age(reference: SystemTime, entry: &walkdir::DirEntry) -> Duratio
         Err(_) => reference,
     };
     reference.duration_since(modified).unwrap_or(Duration::ZERO)
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub enum ErrorType {
+    Scan,
+}
+
+impl EncodeLabelValue for ErrorType {
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        let s = match self {
+            ErrorType::Scan => "scan",
+        };
+        EncodeLabelValue::encode(&s, encoder)
+    }
 }
