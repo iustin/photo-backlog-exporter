@@ -1,8 +1,10 @@
 use std::option::Option;
+use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use prometheus_client::encoding::{EncodeLabelValue, LabelValueEncoder};
+use prometheus_client::metrics::histogram::Histogram;
 
 /// Returns the first directory from a given path.
 /// Example:
@@ -61,5 +63,30 @@ impl EncodeLabelValue for ErrorType {
             ErrorType::Scan => "scan",
         };
         EncodeLabelValue::encode(&s, encoder)
+    }
+}
+
+pub struct Backlog {
+    pub total_errors: i64,
+    pub total_files: i64,
+    pub folders: HashMap<String, (i64, f64)>,
+    pub ages_histogram: Histogram,
+}
+
+impl Backlog {
+    pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
+        Self {
+            total_errors: 0,
+            total_files: 0,
+            folders: HashMap::new(),
+            ages_histogram: Histogram::new(buckets),
+        }
+    }
+    pub fn record_file(&mut self) {
+        self.total_files += 1;
+    }
+
+    pub fn record_error(&mut self) {
+        self.total_errors += 1;
     }
 }

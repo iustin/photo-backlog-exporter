@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
@@ -22,7 +21,6 @@ use prometheus_client::encoding::EncodeMetric;
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue, LabelValueEncoder};
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::{ConstGauge, Gauge};
-use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 
 use photo_backlog_exporter::*;
@@ -129,11 +127,7 @@ impl Collector for PhotoBacklogCollector {
         let instant = Instant::now(); // for this processor's execution time.
         let now = SystemTime::now(); // for file age, which is seconds.
 
-        let mut total_errors: i64 = 0;
-        let mut total_files: i64 = 0;
-        let mut folders: HashMap<String, (i64, f64)> = HashMap::new();
-
-        let ages_histogram = Histogram::new(self.age_buckets.iter().copied());
+        let mut backlog = Backlog::new(self.age_buckets.iter().copied());
 
         let root_path = self.scan_path.as_path();
 
@@ -141,7 +135,7 @@ impl Collector for PhotoBacklogCollector {
             match entry {
                 Err(e) => {
                     info!("Error while scanning recursively: {}", e);
-                    total_errors += 1;
+                    backlog.record_error();
                 }
                 Ok(entry) => {
                     if entry.file_type().is_dir() {
@@ -154,12 +148,12 @@ impl Collector for PhotoBacklogCollector {
                                         m.uid(),
                                         m.gid()
                                     );
-                                    total_errors += 1;
+                                    backlog.record_error();
                                 }
                             }
                             Err(e) => {
                                 info!("Can't stat directory {}: {}", entry.path().display(), e);
-                                total_errors += 1;
+                                backlog.record_error();
                             }
                         }
                         // We don't track directories by themselves,
@@ -175,7 +169,7 @@ impl Collector for PhotoBacklogCollector {
                         }
                     }
 
-                    total_files += 1;
+                    backlog.record_file();
 
                     // Here it's not an ignored entry, so let's process it.
 
@@ -197,7 +191,7 @@ impl Collector for PhotoBacklogCollector {
 
                     // Now update folders struct.
                     let age = relative_age(now, &entry).as_secs_f64();
-                    folders
+                    backlog.folders
                         .entry(folder)
                         .and_modify(|(c, a)| {
                             *c += 1;
@@ -205,7 +199,7 @@ impl Collector for PhotoBacklogCollector {
                         })
                         .or_insert((1, age));
                     // And observe the age for the ages histogram.
-                    ages_histogram.observe(age);
+                    backlog.ages_histogram.observe(age);
                 }
             }
         }
@@ -219,13 +213,13 @@ impl Collector for PhotoBacklogCollector {
             .get_or_create(&TotalLabels {
                 kind: ItemType::Photos,
             })
-            .set(total_files);
+            .set(backlog.total_files);
         totals_fam
             .get_or_create(&TotalLabels {
                 kind: ItemType::Folders,
             })
             .set(
-                folders
+                backlog.folders
                     .len()
                     .try_into()
                     .expect("More than 2^63 entries in the map?!"),
@@ -235,9 +229,9 @@ impl Collector for PhotoBacklogCollector {
             .get_or_create(&ErrorLabels {
                 kind: ErrorType::Scan,
             })
-            .set(total_errors);
+            .set(backlog.total_errors);
 
-        for (path, (cnt, age)) in folders.drain() {
+        for (path, (cnt, age)) in backlog.folders.drain() {
             let labels = FolderLabels { path };
             folder_sizes_fam.get_or_create(&labels).set(cnt);
             folder_ages_fam.get_or_create(&labels).set(age);
@@ -300,11 +294,11 @@ impl Collector for PhotoBacklogCollector {
                 "photo_backlog_ages",
                 "Age of files in the backlog",
                 None,
-                ages_histogram.metric_type(),
+                backlog.ages_histogram.metric_type(),
             )
             .expect("create ages_histogram_encoderr");
 
-        ages_histogram
+        backlog.ages_histogram
             .encode(ages_histogram_encoder)
             .expect("encode ages_histogram");
 
