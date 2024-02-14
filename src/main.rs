@@ -2,7 +2,6 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
 use std::num::ParseFloatError;
-use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::AtomicU64;
@@ -11,8 +10,7 @@ use std::time::{Instant, SystemTime};
 
 use axum::{routing::get, Router};
 use gumdrop::Options;
-use log::{error, info};
-use walkdir::WalkDir;
+use log::info;
 
 use prometheus_client::collector::Collector;
 use prometheus_client::encoding::text::encode;
@@ -127,82 +125,14 @@ impl Collector for PhotoBacklogCollector {
         let instant = Instant::now(); // for this processor's execution time.
         let now = SystemTime::now(); // for file age, which is seconds.
 
-        let mut backlog = Backlog::new(self.age_buckets.iter().copied());
+        let mut backlog = Backlog::new(
+            &self.scan_path,
+            self.owner,
+            self.group,
+            self.age_buckets.iter().copied(),
+        );
 
-        let root_path = self.scan_path.as_path();
-
-        for entry in WalkDir::new(root_path) {
-            match entry {
-                Err(e) => {
-                    info!("Error while scanning recursively: {}", e);
-                    backlog.record_error();
-                }
-                Ok(entry) => {
-                    if entry.file_type().is_dir() {
-                        match entry.metadata() {
-                            Ok(m) => {
-                                if m.uid() != self.owner || m.gid() != self.group {
-                                    info!(
-                                        "Directory {} has wrong owner:group {}:{}",
-                                        entry.path().display(),
-                                        m.uid(),
-                                        m.gid()
-                                    );
-                                    backlog.record_error();
-                                }
-                            }
-                            Err(e) => {
-                                info!("Can't stat directory {}: {}", entry.path().display(), e);
-                                backlog.record_error();
-                            }
-                        }
-                        // We don't track directories by themselves,
-                        // only via file contents.
-                        continue;
-                    }
-                    match entry.path().extension() {
-                        None => continue,
-                        Some(ext) => {
-                            if self.ignored_exts.iter().any(|c| c == ext) {
-                                continue;
-                            }
-                        }
-                    }
-
-                    backlog.record_file();
-
-                    // Here it's not an ignored entry, so let's process it.
-
-                    // Find owner top-level dir.
-                    let parent = match relative_top(root_path, entry.path()) {
-                        Some(x) => x,
-                        None => {
-                            error!(
-                                "Can't determine parent path for {}",
-                                entry.path().to_string_lossy()
-                            );
-                            continue;
-                        }
-                    };
-
-                    // And convert to valid UTF-8 string via lossy
-                    // conversion. But at least we're back in safe land.
-                    let folder = String::from(parent.to_string_lossy());
-
-                    // Now update folders struct.
-                    let age = relative_age(now, &entry).as_secs_f64();
-                    backlog.folders
-                        .entry(folder)
-                        .and_modify(|(c, a)| {
-                            *c += 1;
-                            *a += age;
-                        })
-                        .or_insert((1, age));
-                    // And observe the age for the ages histogram.
-                    backlog.ages_histogram.observe(age);
-                }
-            }
-        }
+        backlog.scan(&self.ignored_exts, now);
 
         let totals_fam = Family::<TotalLabels, Gauge>::default();
         let errors_fam = Family::<ErrorLabels, Gauge>::default();
@@ -219,7 +149,8 @@ impl Collector for PhotoBacklogCollector {
                 kind: ItemType::Folders,
             })
             .set(
-                backlog.folders
+                backlog
+                    .folders
                     .len()
                     .try_into()
                     .expect("More than 2^63 entries in the map?!"),
@@ -298,7 +229,8 @@ impl Collector for PhotoBacklogCollector {
             )
             .expect("create ages_histogram_encoderr");
 
-        backlog.ages_histogram
+        backlog
+            .ages_histogram
             .encode(ages_histogram_encoder)
             .expect("encode ages_histogram");
 

@@ -1,7 +1,12 @@
-use std::option::Option;
 use std::collections::HashMap;
+use std::ffi::OsString;
+use std::option::Option;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime};
+
+use log::{error, info};
+use walkdir::WalkDir;
 
 use prometheus_client::encoding::{EncodeLabelValue, LabelValueEncoder};
 use prometheus_client::metrics::histogram::Histogram;
@@ -66,16 +71,27 @@ impl EncodeLabelValue for ErrorType {
     }
 }
 
-pub struct Backlog {
+pub struct Backlog<'a> {
+    pub root_path: &'a Path,
+    owner: u32,
+    group: u32,
     pub total_errors: i64,
     pub total_files: i64,
     pub folders: HashMap<String, (i64, f64)>,
     pub ages_histogram: Histogram,
 }
 
-impl Backlog {
-    pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
+impl<'a> Backlog<'a> {
+    pub fn new<P: AsRef<Path>>(
+        root: &'a P,
+        owner: u32,
+        group: u32,
+        buckets: impl Iterator<Item = f64>,
+    ) -> Self {
         Self {
+            root_path: root.as_ref(),
+            owner,
+            group,
             total_errors: 0,
             total_files: 0,
             folders: HashMap::new(),
@@ -88,5 +104,80 @@ impl Backlog {
 
     pub fn record_error(&mut self) {
         self.total_errors += 1;
+    }
+
+    pub fn scan(&mut self, ignored_exts: &[OsString], now: SystemTime) {
+        for entry in WalkDir::new(self.root_path) {
+            match entry {
+                Err(e) => {
+                    info!("Error while scanning recursively: {}", e);
+                    self.record_error();
+                }
+                Ok(entry) => {
+                    if entry.file_type().is_dir() {
+                        match entry.metadata() {
+                            Ok(m) => {
+                                if m.uid() != self.owner || m.gid() != self.group {
+                                    info!(
+                                        "Directory {} has wrong owner:group {}:{}",
+                                        entry.path().display(),
+                                        m.uid(),
+                                        m.gid()
+                                    );
+                                    self.record_error();
+                                }
+                            }
+                            Err(e) => {
+                                info!("Can't stat directory {}: {}", entry.path().display(), e);
+                                self.record_error();
+                            }
+                        }
+                        // We don't track directories by themselves,
+                        // only via file contents.
+                        continue;
+                    }
+                    match entry.path().extension() {
+                        None => continue,
+                        Some(ext) => {
+                            if ignored_exts.iter().any(|c| c == ext) {
+                                continue;
+                            }
+                        }
+                    }
+
+                    self.record_file();
+
+                    // Here it's not an ignored entry, so let's process it.
+
+                    // Find owner top-level dir.
+                    let parent = match relative_top(self.root_path, entry.path()) {
+                        Some(x) => x,
+                        None => {
+                            error!(
+                                "Can't determine parent path for {}",
+                                entry.path().to_string_lossy()
+                            );
+                            continue;
+                        }
+                    };
+
+                    // And convert to valid UTF-8 string via lossy
+                    // conversion. But at least we're back in safe land.
+                    let folder = String::from(parent.to_string_lossy());
+
+                    // Now update folders struct.
+                    let age = relative_age(now, &entry).as_secs_f64();
+                    self.folders
+                        .entry(folder)
+                        .and_modify(|(c, a)| {
+                            *c += 1;
+                            *a += age;
+                        })
+                        .or_insert((1, age));
+                    // And observe the age for the ages histogram.
+                    self.ages_histogram.observe(age);
+                }
+            }
+        }
     }
 }
