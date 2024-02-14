@@ -1,9 +1,7 @@
 use std::ffi::OsString;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
-use std::num::ParseFloatError;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
@@ -25,23 +23,6 @@ use photo_backlog_exporter::*;
 
 const PROCESSING_TIME_NAME: &str = "photo_backlog_processing_time_seconds";
 const PROCESSING_TIME_HELP: &str = "Processing time for scanning the backlog";
-
-const WEEK: f64 = 7.0 * 86400.0;
-
-fn parse_exts(s: &str) -> Vec<OsString> {
-    s.split(',')
-        .filter(|c| !c.is_empty())
-        .map(OsString::from)
-        .collect()
-}
-
-fn parse_weeks(s: &str) -> Result<Vec<f64>, ParseFloatError> {
-    s.split(',')
-        .filter(|c| !c.is_empty())
-        .map(f64::from_str)
-        .map(|r| r.map(|f| f * WEEK))
-        .collect()
-}
 
 #[derive(Debug, Options)]
 struct CliOptions {

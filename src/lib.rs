@@ -4,12 +4,16 @@ use std::option::Option;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime};
+use std::num::ParseFloatError;
+use std::str::FromStr;
 
 use log::{error, info};
 use walkdir::WalkDir;
 
 use prometheus_client::encoding::{EncodeLabelValue, LabelValueEncoder};
 use prometheus_client::metrics::histogram::Histogram;
+
+const WEEK: f64 = 7.0 * 86400.0;
 
 /// Returns the first directory from a given path.
 /// Example:
@@ -55,6 +59,21 @@ pub fn relative_age(reference: SystemTime, entry: &walkdir::DirEntry) -> Duratio
         Err(_) => reference,
     };
     reference.duration_since(modified).unwrap_or(Duration::ZERO)
+}
+
+pub fn parse_exts(s: &str) -> Vec<OsString> {
+    s.split(',')
+        .filter(|c| !c.is_empty())
+        .map(OsString::from)
+        .collect()
+}
+
+pub fn parse_weeks(s: &str) -> Result<Vec<f64>, ParseFloatError> {
+    s.split(',')
+        .filter(|c| !c.is_empty())
+        .map(f64::from_str)
+        .map(|r| r.map(|f| f * WEEK))
+        .collect()
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
