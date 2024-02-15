@@ -22,3 +22,6 @@ log = "0.4.20"
 version = "0.11.2"
 default-features = false
 features = ["auto-color", "humantime"]
+
+[dev-dependencies]
+tempfile = "3.10.0"
