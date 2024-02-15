@@ -15,6 +15,8 @@ use prometheus_client::metrics::histogram::Histogram;
 
 const WEEK: f64 = 7.0 * 86400.0;
 
+pub mod prometheus;
+
 /// Returns the first directory from a given path.
 /// Example:
 /// ```
