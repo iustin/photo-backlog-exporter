@@ -1,6 +1,5 @@
 use std::ffi::OsString;
 
-
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 
@@ -13,7 +12,6 @@ use prometheus_client::encoding::EncodeMetric;
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue, LabelValueEncoder};
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::{ConstGauge, Gauge};
-
 
 pub const PROCESSING_TIME_NAME: &str = "photo_backlog_processing_time_seconds";
 pub const PROCESSING_TIME_HELP: &str = "Processing time for scanning the backlog";
@@ -62,14 +60,16 @@ impl Collector for PhotoBacklogCollector {
         let instant = Instant::now(); // for this processor's execution time.
         let now = SystemTime::now(); // for file age, which is seconds.
 
-        let mut backlog = super::Backlog::new(
-            &self.scan_path,
-            self.owner,
-            self.group,
-            self.age_buckets.iter().copied(),
-        );
+        let config = super::Config {
+            root_path: &self.scan_path,
+            ignored_exts: &self.ignored_exts,
+            owner: self.owner,
+            group: self.group,
+        };
 
-        backlog.scan(&self.ignored_exts, now);
+        let mut backlog = super::Backlog::new(self.age_buckets.iter().copied());
+
+        backlog.scan(&config, now);
 
         let totals_fam = Family::<TotalLabels, Gauge>::default();
         let errors_fam = Family::<ErrorLabels, Gauge>::default();

@@ -112,27 +112,22 @@ impl EncodeLabelValue for ErrorType {
     }
 }
 
-pub struct Backlog<'a> {
+pub struct Config<'a> {
     pub root_path: &'a Path,
-    owner: u32,
-    group: u32,
+    pub ignored_exts: &'a [OsString],
+    pub owner: u32,
+    pub group: u32,
+}
+pub struct Backlog {
     pub total_errors: i64,
     pub total_files: i64,
     pub folders: HashMap<String, (i64, f64)>,
     pub ages_histogram: Histogram,
 }
 
-impl<'a> Backlog<'a> {
-    pub fn new<P: AsRef<Path>>(
-        root: &'a P,
-        owner: u32,
-        group: u32,
-        buckets: impl Iterator<Item = f64>,
-    ) -> Self {
+impl Backlog {
+    pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
         Self {
-            root_path: root.as_ref(),
-            owner,
-            group,
             total_errors: 0,
             total_files: 0,
             folders: HashMap::new(),
@@ -147,8 +142,8 @@ impl<'a> Backlog<'a> {
         self.total_errors += 1;
     }
 
-    pub fn scan(&mut self, ignored_exts: &[OsString], now: SystemTime) {
-        for entry in WalkDir::new(self.root_path) {
+    pub fn scan(&mut self, config: &Config, now: SystemTime) {
+        for entry in WalkDir::new(config.root_path) {
             match entry {
                 Err(e) => {
                     info!("Error while scanning recursively: {}", e);
@@ -158,7 +153,7 @@ impl<'a> Backlog<'a> {
                     if entry.file_type().is_dir() {
                         match entry.metadata() {
                             Ok(m) => {
-                                if m.uid() != self.owner || m.gid() != self.group {
+                                if m.uid() != config.owner || m.gid() != config.group {
                                     info!(
                                         "Directory {} has wrong owner:group {}:{}",
                                         entry.path().display(),
@@ -180,7 +175,7 @@ impl<'a> Backlog<'a> {
                     match entry.path().extension() {
                         None => continue,
                         Some(ext) => {
-                            if ignored_exts.iter().any(|c| c == ext) {
+                            if config.ignored_exts.iter().any(|c| c == ext) {
                                 continue;
                             }
                         }
@@ -191,7 +186,7 @@ impl<'a> Backlog<'a> {
                     // Here it's not an ignored entry, so let's process it.
 
                     // Find owner top-level dir.
-                    let parent = match relative_top(self.root_path, entry.path()) {
+                    let parent = match relative_top(config.root_path, entry.path()) {
                         Some(x) => x,
                         None => {
                             error!(
