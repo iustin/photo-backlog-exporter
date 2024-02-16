@@ -15,6 +15,8 @@ use prometheus_client::metrics::histogram::Histogram;
 
 const WEEK: f64 = 7.0 * 86400.0;
 
+const ROOT_FILE_DIR: &str = ".";
+
 pub mod prometheus;
 
 /// Returns the first directory from a given path.
@@ -33,7 +35,7 @@ pub fn first_dir(p: &Path) -> Option<PathBuf> {
         _ => None,
     })?;
     if parent == p {
-        return Some(PathBuf::from("."));
+        return Some(PathBuf::from(ROOT_FILE_DIR));
     }
     // And convert to valid UTF-8 string via lossy conversion. But we're back in safe land.
     let parent2: &Path = parent.as_ref();
@@ -226,8 +228,8 @@ mod tests {
     use tempfile::tempdir;
     use tempfile::TempDir;
 
-    use crate::Backlog;
     use crate::Config;
+    use crate::{Backlog, ROOT_FILE_DIR};
 
     const SUBDIR: &str = "dir1";
 
@@ -326,5 +328,18 @@ mod tests {
         assert!(backlog.folders.contains_key(SUBDIR));
         assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 2);
         assert_eq!(backlog.total_files, 2);
+    }
+    #[test]
+    fn file_in_root_dir() {
+        let temp_dir = tempdir().unwrap();
+        add_file(temp_dir.path(), "file.nef");
+        let config = build_config(temp_dir.path(), 0, 0);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 1);
+        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
+        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        assert_eq!(backlog.total_files, 1);
     }
 }
