@@ -6,7 +6,15 @@ to process. It's an (expanded) port of a previous Python version,
 mostly as a learning exercise, and is designed to work together with
 the file structure as used by github.com/iustin/corydalis.
 
-This structure is based just on the first-level directories; anything
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/iustin/photo-backlog-exporter/rust.yml?branch=main)](https://github.com/iustin/pyxattr/actions/workflows/ci.yml)
+[![Codecov](https://img.shields.io/codecov/c/github/iustin/photo-backlog-exporter)](https://codecov.io/gh/iustin/photo-backlog-exporter)
+
+## What does it do?
+
+The program is intended to export metrics for Prometheus based on the
+count, age and distribution of files in a directory.
+
+The directory structure is based just on the first-level directories; anything
 deeper will be aggregated to the first-level directory. So for example
 the output of this `tree` command:
 
@@ -32,7 +40,7 @@ Will be exported as:
 * 2 directories (`2023-11-01 Long trip` and `2023-11-19 Some
   pictures`);
 * for each directory, an aggregated "age" will be computed (sum of
-  ages);
+  ages, relative to the current time);
 * and an overall histogram with pending file ages will be exported;
 
 ## Motivation
@@ -54,12 +62,16 @@ future I plan to add permission/ownership checks as well.
 ## Installation
 
 Run the usual `cargo build -r`. Copy the resulting binary (from
-`target/release`) somewhere, then run it.
+`target/release`) somewhere, then run it. You have two options:
+
+* run the `photo-backlog-exporter` binary as a daemon
+* run the `oneshot` binary as a text exporter, and save its
+  output somewhere so that the common `node-exporter` can pick it up.
 
 Since this doesn't need any special rights, just to be able to look at
-directories and files, I run it as a dynamic systemd user, just with
-supplemental groups my photos group. You can find an example systemd
-unit in `examples/systemd.server`. This is accompanied by the
+directories and files, I run the daemon as a dynamic systemd user, just
+with supplemental groups my photos group. You can find an example
+systemd unit in `examples/systemd.server`. This is accompanied by the
 "defaults" file `examples/prometheus-photo-backlog-exporter.defaults`
 (see the service file, move the defaults where it is appropriate).
 
