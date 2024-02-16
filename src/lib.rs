@@ -217,3 +217,114 @@ impl Backlog {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+    use std::time::SystemTime;
+    use tempfile::tempdir;
+    use tempfile::TempDir;
+
+    use crate::Backlog;
+    use crate::Config;
+
+    const SUBDIR: &str = "dir1";
+
+    fn build_config(p: &Path, owner: u32, group: u32) -> Config {
+        Config {
+            root_path: p,
+            ignored_exts: &[],
+            owner,
+            group,
+        }
+    }
+
+    fn get_subdir() -> (TempDir, PathBuf) {
+        let temp_dir = tempdir().unwrap();
+        let subdir = temp_dir.path().join(SUBDIR);
+        std::fs::create_dir(&subdir).expect("Can't create subdir");
+        (temp_dir, subdir)
+    }
+
+    fn add_file(d: &Path, name: &str) {
+        let mut p = PathBuf::from(d);
+        p.push(name);
+        std::fs::write(p, b"").expect("Can't create file");
+    }
+
+    #[test]
+    fn empty_dir() {
+        let temp_dir = tempdir().unwrap();
+        let config = build_config(temp_dir.path(), 0, 0);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 0);
+        assert_eq!(backlog.total_files, 0);
+    }
+    #[test]
+    fn empty_dir_is_empty() {
+        let (temp_dir, _) = get_subdir();
+        let config = build_config(temp_dir.path(), 0, 0);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 0);
+        assert_eq!(backlog.total_files, 0);
+    }
+    #[test]
+    fn no_extension_is_ignored() {
+        let (temp_dir, subdir) = get_subdir();
+        add_file(&subdir, "readme");
+        let config = build_config(temp_dir.path(), 0, 0);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 0);
+        assert_eq!(backlog.total_files, 0);
+    }
+    #[test]
+    fn ignored_extension_is_ignored() {
+        let (temp_dir, subdir) = get_subdir();
+        add_file(&subdir, "file.nef");
+        add_file(&subdir, "file.xmp");
+        let mut config = build_config(temp_dir.path(), 0, 0);
+        let exts = [OsString::from("xmp")];
+        config.ignored_exts = &exts;
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 1);
+        assert!(backlog.folders.contains_key(SUBDIR));
+        assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 1);
+        assert_eq!(backlog.total_files, 1);
+    }
+    #[test]
+    fn one_dir_one_file() {
+        let (temp_dir, subdir) = get_subdir();
+        add_file(&subdir, "file.nef");
+        let config = build_config(temp_dir.path(), 0, 0);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 1);
+        assert!(backlog.folders.contains_key(SUBDIR));
+        assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 1);
+        assert_eq!(backlog.total_files, 1);
+    }
+    #[test]
+    fn one_dir_two_files() {
+        let (temp_dir, subdir) = get_subdir();
+        add_file(&subdir, "dsc001.nef");
+        add_file(&subdir, "dsc002.jpg");
+        let config = build_config(temp_dir.path(), 0, 0);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 1);
+        assert!(backlog.folders.contains_key(SUBDIR));
+        assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 2);
+        assert_eq!(backlog.total_files, 2);
+    }
+}
