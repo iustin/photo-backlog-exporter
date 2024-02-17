@@ -21,8 +21,8 @@ pub struct PhotoBacklogCollector {
     pub scan_path: PathBuf,
     pub ignored_exts: Vec<OsString>,
     pub age_buckets: Vec<f64>,
-    pub owner: u32,
-    pub group: u32,
+    pub owner: Option<u32>,
+    pub group: Option<u32>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

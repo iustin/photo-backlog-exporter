@@ -44,11 +44,11 @@ struct CliOptions {
     )]
     age_buckets: Vec<f64>,
 
-    #[options(help = "Owner expected for all files", required)]
-    owner: u32,
+    #[options(help = "Owner expected for all files")]
+    owner: Option<u32>,
 
-    #[options(help = "Group expected for all files", required)]
-    group: u32,
+    #[options(help = "Group expected for all files")]
+    group: Option<u32>,
 }
 
 // Enables logging with support for systemd (if enabled).

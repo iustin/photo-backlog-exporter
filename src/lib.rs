@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
+use std::fs::Metadata;
 use std::num::ParseFloatError;
 use std::option::Option;
 use std::os::unix::fs::MetadataExt;
@@ -114,12 +115,45 @@ impl EncodeLabelValue for ErrorType {
     }
 }
 
+pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -> bool {
+    let mut good = true;
+    if let Some(owner) = config.owner {
+        let uid = m.uid();
+        if owner != uid {
+            info!(
+                "{} '{}' has wrong owner {}, expected {}",
+                kind,
+                path.display(),
+                uid,
+                owner
+            );
+            good = false;
+        }
+    }
+    if let Some(group) = config.group {
+        let gid = m.gid();
+        if group != gid {
+            info!(
+                "{} '{}' has wrong group {}, expected {}",
+                kind,
+                path.display(),
+                gid,
+                group
+            );
+            good = false;
+        }
+    }
+    good
+}
+
 pub struct Config<'a> {
     pub root_path: &'a Path,
     pub ignored_exts: &'a [OsString],
-    pub owner: u32,
-    pub group: u32,
+    pub owner: Option<u32>,
+    pub group: Option<u32>,
 }
+
+#[derive(Debug)]
 pub struct Backlog {
     pub total_errors: i64,
     pub total_files: i64,
@@ -155,13 +189,7 @@ impl Backlog {
                     if entry.file_type().is_dir() {
                         match entry.metadata() {
                             Ok(m) => {
-                                if m.uid() != config.owner || m.gid() != config.group {
-                                    info!(
-                                        "Directory {} has wrong owner:group {}:{}",
-                                        entry.path().display(),
-                                        m.uid(),
-                                        m.gid()
-                                    );
+                                if !check_ownership(config, entry.path(), &m, "Directory") {
                                     self.record_error();
                                 }
                             }
@@ -223,6 +251,7 @@ impl Backlog {
 #[cfg(test)]
 mod tests {
     use std::ffi::OsString;
+    use std::os::unix::fs::MetadataExt;
     use std::path::{Path, PathBuf};
     use std::time::SystemTime;
     use tempfile::tempdir;
@@ -233,7 +262,7 @@ mod tests {
 
     const SUBDIR: &str = "dir1";
 
-    fn build_config(p: &Path, owner: u32, group: u32) -> Config {
+    fn build_config(p: &Path, owner: Option<u32>, group: Option<u32>) -> Config {
         Config {
             root_path: p,
             ignored_exts: &[],
@@ -249,16 +278,17 @@ mod tests {
         (temp_dir, subdir)
     }
 
-    fn add_file(d: &Path, name: &str) {
+    fn add_file(d: &Path, name: &str) -> PathBuf {
         let mut p = PathBuf::from(d);
         p.push(name);
-        std::fs::write(p, b"").expect("Can't create file");
+        std::fs::write(&p, b"").expect("Can't create file");
+        p
     }
 
     #[test]
     fn empty_dir() {
         let temp_dir = tempdir().unwrap();
-        let config = build_config(temp_dir.path(), 0, 0);
+        let config = build_config(temp_dir.path(), None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -268,7 +298,7 @@ mod tests {
     #[test]
     fn empty_dir_is_empty() {
         let (temp_dir, _) = get_subdir();
-        let config = build_config(temp_dir.path(), 0, 0);
+        let config = build_config(temp_dir.path(), None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -279,7 +309,7 @@ mod tests {
     fn no_extension_is_ignored() {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "readme");
-        let config = build_config(temp_dir.path(), 0, 0);
+        let config = build_config(temp_dir.path(), None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -291,7 +321,7 @@ mod tests {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "file.nef");
         add_file(&subdir, "file.xmp");
-        let mut config = build_config(temp_dir.path(), 0, 0);
+        let mut config = build_config(temp_dir.path(), None, None);
         let exts = [OsString::from("xmp")];
         config.ignored_exts = &exts;
         let mut backlog = Backlog::new([].into_iter());
@@ -306,7 +336,7 @@ mod tests {
     fn one_dir_one_file() {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "file.nef");
-        let config = build_config(temp_dir.path(), 0, 0);
+        let config = build_config(temp_dir.path(), None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -320,7 +350,7 @@ mod tests {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "dsc001.nef");
         add_file(&subdir, "dsc002.jpg");
-        let config = build_config(temp_dir.path(), 0, 0);
+        let config = build_config(temp_dir.path(), None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -333,7 +363,7 @@ mod tests {
     fn file_in_root_dir() {
         let temp_dir = tempdir().unwrap();
         add_file(temp_dir.path(), "file.nef");
-        let config = build_config(temp_dir.path(), 0, 0);
+        let config = build_config(temp_dir.path(), None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -341,5 +371,55 @@ mod tests {
         assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
         assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
         assert_eq!(backlog.total_files, 1);
+    }
+    #[test]
+    fn test_permissions() {
+        let temp_dir = tempdir().unwrap();
+        let fname = add_file(temp_dir.path(), "file.nef");
+        let m = std::fs::metadata(fname).expect("Can't stat just created file!");
+
+        // No permissions check.
+        let config = build_config(temp_dir.path(), None, None);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 1);
+        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
+        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        assert_eq!(backlog.total_files, 1);
+        assert_eq!(backlog.total_errors, 0);
+
+        // Good permissions check.
+        let config = build_config(temp_dir.path(), Some(m.uid()), Some(m.gid()));
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 1);
+        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
+        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        assert_eq!(backlog.total_files, 1);
+        assert_eq!(backlog.total_errors, 0);
+
+        // Bad user check.
+        let config = build_config(temp_dir.path(), Some(m.uid() + 1), None);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 1);
+        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
+        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        assert_eq!(backlog.total_files, 1);
+        assert_eq!(backlog.total_errors, 1);
+
+        // Bad group check.
+        let config = build_config(temp_dir.path(), None, Some(m.gid() + 1));
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        assert_eq!(backlog.folders.len(), 1);
+        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
+        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        assert_eq!(backlog.total_files, 1);
+        assert_eq!(backlog.total_errors, 1);
     }
 }
