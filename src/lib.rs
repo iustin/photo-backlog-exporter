@@ -250,6 +250,7 @@ impl Backlog {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use std::ffi::OsString;
     use std::os::unix::fs::MetadataExt;
     use std::path::{Path, PathBuf};
@@ -377,42 +378,40 @@ mod tests {
         check_backlog(&backlog, 1, 1, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
-    #[test]
-    fn test_permissions() {
+
+    enum FailMode {
+        NoCheck,
+        GoodCheck,
+        BadCheck,
+    }
+    #[rstest]
+    fn test_permissions(
+        #[values(FailMode::NoCheck, FailMode::GoodCheck, FailMode::BadCheck)] user_mode: FailMode,
+        #[values(FailMode::NoCheck, FailMode::GoodCheck, FailMode::BadCheck)] group_mode: FailMode,
+    ) {
         let temp_dir = tempdir().unwrap();
         let fname = add_file(temp_dir.path(), "file.nef");
         let m = std::fs::metadata(fname).expect("Can't stat just created file!");
-
+        let user_check = match user_mode {
+            FailMode::NoCheck => None,
+            FailMode::GoodCheck => Some(m.uid()),
+            FailMode::BadCheck => Some(m.uid() + 1),
+        };
+        let group_check = match group_mode {
+            FailMode::NoCheck => None,
+            FailMode::GoodCheck => Some(m.gid()),
+            FailMode::BadCheck => Some(m.gid() + 1),
+        };
         // No permissions check.
-        let config = build_config(temp_dir.path(), None, None);
+        let config = build_config(temp_dir.path(), user_check, group_check);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 0);
-        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
-
-        // Good permissions check.
-        let config = build_config(temp_dir.path(), Some(m.uid()), Some(m.gid()));
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
-        backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 0);
-        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
-
-        // Bad user check.
-        let config = build_config(temp_dir.path(), Some(m.uid() + 1), None);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
-        backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 1);
-        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
-
-        // Bad group check.
-        let config = build_config(temp_dir.path(), None, Some(m.gid() + 1));
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
-        backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 1);
+        let expected_errors = match (user_mode, group_mode) {
+            (FailMode::BadCheck, _) | (_, FailMode::BadCheck) => 1,
+            _ => 0,
+        };
+        check_backlog(&backlog, 1, 1, expected_errors);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 }

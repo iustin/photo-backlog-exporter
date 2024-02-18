@@ -25,3 +25,4 @@ features = ["auto-color", "humantime"]
 
 [dev-dependencies]
 tempfile = "3.10.0"
+rstest = "0.18.2"
