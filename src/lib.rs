@@ -392,16 +392,15 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let fname = add_file(temp_dir.path(), "file.nef");
         let m = std::fs::metadata(fname).expect("Can't stat just created file!");
-        let user_check = match user_mode {
-            FailMode::NoCheck => None,
-            FailMode::GoodCheck => Some(m.uid()),
-            FailMode::BadCheck => Some(m.uid() + 1),
-        };
-        let group_check = match group_mode {
-            FailMode::NoCheck => None,
-            FailMode::GoodCheck => Some(m.gid()),
-            FailMode::BadCheck => Some(m.gid() + 1),
-        };
+        fn generate_check(mode: &FailMode, id: u32) -> Option<u32> {
+            match mode {
+                FailMode::NoCheck => None,
+                FailMode::GoodCheck => Some(id),
+                FailMode::BadCheck => Some(id + 1),
+            }
+        }
+        let user_check = generate_check(&user_mode, m.uid());
+        let group_check = generate_check(&group_mode, m.gid());
         // No permissions check.
         let config = build_config(temp_dir.path(), user_check, group_check);
         let mut backlog = Backlog::new([].into_iter());
