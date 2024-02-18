@@ -285,6 +285,17 @@ mod tests {
         p
     }
 
+    fn check_backlog(
+        backlog: &Backlog,
+        expect_folders: usize,
+        expect_files: i64,
+        expect_errors: i64,
+    ) {
+        assert_eq!(backlog.folders.len(), expect_folders);
+        assert_eq!(backlog.total_files, expect_files);
+        assert_eq!(backlog.total_errors, expect_errors);
+    }
+
     #[test]
     fn empty_dir() {
         let temp_dir = tempdir().unwrap();
@@ -292,8 +303,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 0);
-        assert_eq!(backlog.total_files, 0);
+        check_backlog(&backlog, 0, 0, 0);
     }
     #[test]
     fn empty_dir_is_empty() {
@@ -302,8 +312,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 0);
-        assert_eq!(backlog.total_files, 0);
+        check_backlog(&backlog, 0, 0, 0);
     }
     #[test]
     fn no_extension_is_ignored() {
@@ -313,8 +322,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 0);
-        assert_eq!(backlog.total_files, 0);
+        check_backlog(&backlog, 0, 0, 0);
     }
     #[test]
     fn ignored_extension_is_ignored() {
@@ -327,10 +335,9 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 1);
+        check_backlog(&backlog, 1, 1, 0);
         assert!(backlog.folders.contains_key(SUBDIR));
         assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 1);
-        assert_eq!(backlog.total_files, 1);
     }
     #[test]
     fn one_dir_one_file() {
@@ -340,10 +347,9 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 1);
+        check_backlog(&backlog, 1, 1, 0);
         assert!(backlog.folders.contains_key(SUBDIR));
         assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 1);
-        assert_eq!(backlog.total_files, 1);
     }
     #[test]
     fn one_dir_two_files() {
@@ -354,10 +360,9 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 1);
+        check_backlog(&backlog, 1, 2, 0);
         assert!(backlog.folders.contains_key(SUBDIR));
         assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 2);
-        assert_eq!(backlog.total_files, 2);
     }
     #[test]
     fn file_in_root_dir() {
@@ -367,10 +372,9 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 1);
+        check_backlog(&backlog, 1, 1, 0);
         assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
         assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
-        assert_eq!(backlog.total_files, 1);
     }
     #[test]
     fn test_permissions() {
@@ -383,43 +387,35 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 1);
+        check_backlog(&backlog, 1, 1, 0);
         assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
         assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
-        assert_eq!(backlog.total_files, 1);
-        assert_eq!(backlog.total_errors, 0);
 
         // Good permissions check.
         let config = build_config(temp_dir.path(), Some(m.uid()), Some(m.gid()));
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 1);
+        check_backlog(&backlog, 1, 1, 0);
         assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
         assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
-        assert_eq!(backlog.total_files, 1);
-        assert_eq!(backlog.total_errors, 0);
 
         // Bad user check.
         let config = build_config(temp_dir.path(), Some(m.uid() + 1), None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 1);
+        check_backlog(&backlog, 1, 1, 1);
         assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
         assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
-        assert_eq!(backlog.total_files, 1);
-        assert_eq!(backlog.total_errors, 1);
 
         // Bad group check.
         let config = build_config(temp_dir.path(), None, Some(m.gid() + 1));
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        assert_eq!(backlog.folders.len(), 1);
+        check_backlog(&backlog, 1, 1, 1);
         assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
         assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
-        assert_eq!(backlog.total_files, 1);
-        assert_eq!(backlog.total_errors, 1);
     }
 }
