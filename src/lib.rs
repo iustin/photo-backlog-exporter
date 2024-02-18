@@ -296,6 +296,11 @@ mod tests {
         assert_eq!(backlog.total_errors, expect_errors);
     }
 
+    fn check_has_dir_with(backlog: &Backlog, folder: &str, file_count: i64) {
+        assert!(backlog.folders.contains_key(folder));
+        assert_eq!(backlog.folders.get(folder).unwrap().0, file_count);
+    }
+
     #[test]
     fn empty_dir() {
         let temp_dir = tempdir().unwrap();
@@ -336,8 +341,7 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0);
-        assert!(backlog.folders.contains_key(SUBDIR));
-        assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 1);
+        check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[test]
     fn one_dir_one_file() {
@@ -348,8 +352,7 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0);
-        assert!(backlog.folders.contains_key(SUBDIR));
-        assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 1);
+        check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[test]
     fn one_dir_two_files() {
@@ -361,8 +364,7 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 2, 0);
-        assert!(backlog.folders.contains_key(SUBDIR));
-        assert_eq!(backlog.folders.get(SUBDIR).unwrap().0, 2);
+        check_has_dir_with(&backlog, SUBDIR, 2);
     }
     #[test]
     fn file_in_root_dir() {
@@ -373,8 +375,7 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0);
-        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
-        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
     #[test]
     fn test_permissions() {
@@ -388,8 +389,7 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0);
-        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
-        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
 
         // Good permissions check.
         let config = build_config(temp_dir.path(), Some(m.uid()), Some(m.gid()));
@@ -397,8 +397,7 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0);
-        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
-        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
 
         // Bad user check.
         let config = build_config(temp_dir.path(), Some(m.uid() + 1), None);
@@ -406,8 +405,7 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 1);
-        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
-        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
 
         // Bad group check.
         let config = build_config(temp_dir.path(), None, Some(m.gid() + 1));
@@ -415,7 +413,6 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 1);
-        assert!(backlog.folders.contains_key(ROOT_FILE_DIR));
-        assert_eq!(backlog.folders.get(ROOT_FILE_DIR).unwrap().0, 1);
+        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 }
