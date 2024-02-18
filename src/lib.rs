@@ -378,13 +378,13 @@ mod tests {
 
     enum FailMode {
         NoCheck,
-        GoodCheck,
-        BadCheck,
+        Good,
+        Bad,
     }
     #[rstest]
     fn test_permissions(
-        #[values(FailMode::NoCheck, FailMode::GoodCheck, FailMode::BadCheck)] user_mode: FailMode,
-        #[values(FailMode::NoCheck, FailMode::GoodCheck, FailMode::BadCheck)] group_mode: FailMode,
+        #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] user_mode: FailMode,
+        #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] group_mode: FailMode,
     ) {
         let temp_dir = tempdir().unwrap();
         let fname = add_file(temp_dir.path(), "file.nef");
@@ -392,8 +392,8 @@ mod tests {
         fn generate_check(mode: &FailMode, id: u32) -> Option<u32> {
             match mode {
                 FailMode::NoCheck => None,
-                FailMode::GoodCheck => Some(id),
-                FailMode::BadCheck => Some(id + 1),
+                FailMode::Good => Some(id),
+                FailMode::Bad => Some(id + 1),
             }
         }
         let user_check = generate_check(&user_mode, m.uid());
@@ -404,7 +404,7 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         let expected_errors = match (user_mode, group_mode) {
-            (FailMode::BadCheck, _) | (_, FailMode::BadCheck) => 1,
+            (FailMode::Bad, _) | (_, FailMode::Bad) => 1,
             _ => 0,
         };
         check_backlog(&backlog, 1, 1, expected_errors);
