@@ -118,30 +118,27 @@ impl EncodeLabelValue for ErrorType {
 pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -> bool {
     let mut good = true;
     if let Some(owner) = config.owner {
-        let uid = m.uid();
-        if owner != uid {
-            info!(
-                "{} '{}' has wrong owner {}, expected {}",
-                kind,
-                path.display(),
-                uid,
-                owner
-            );
-            good = false;
-        }
+        good &= owner == m.uid();
     }
     if let Some(group) = config.group {
-        let gid = m.gid();
-        if group != gid {
-            info!(
-                "{} '{}' has wrong group {}, expected {}",
-                kind,
-                path.display(),
-                gid,
-                group
-            );
-            good = false;
+        good &= group == m.gid();
+    }
+    if !good {
+        fn format_id(m_id: Option<u32>) -> String {
+            match m_id {
+                None => "(not checked)".to_string(),
+                Some(p) => p.to_string(),
+            }
         }
+        info!(
+            "{} '{}' has wrong owner:group {}:{}, expected {}:{}",
+            kind,
+            path.display(),
+            m.uid(),
+            m.gid(),
+            format_id(config.owner),
+            format_id(config.group)
+        );
     }
     good
 }
