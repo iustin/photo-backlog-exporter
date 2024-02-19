@@ -186,3 +186,72 @@ impl Collector for PhotoBacklogCollector {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use prometheus_client::{encoding::text::encode, registry::Registry};
+    use rstest::rstest;
+    use tempfile::tempdir;
+
+    extern crate speculoos;
+    use speculoos::prelude::*;
+
+    /// Runs the collector with a variety of folder configurations and
+    /// checks that the encoding contains a few expected values.
+    /// Note not all encoded values are tested.
+    #[rstest]
+    #[case::empty_dir([0].to_vec())]
+    #[case::one_dir_one_file([1].to_vec())]
+    #[case::two_dirs_one_two([1, 2].to_vec())]
+    #[case::three_dirs_one_zero_two([1, 0, 2].to_vec())]
+    fn test_backlog_encoding(#[case] folders_config: Vec<i32>) {
+        fn format_dir(pos: usize) -> String {
+            format!("dir-{}", pos)
+        }
+        let temp_dir = tempdir().unwrap();
+        for (pos, folder_size) in folders_config.iter().enumerate() {
+            let folder = temp_dir.path().join(format_dir(pos));
+            std::fs::create_dir(&folder).unwrap();
+            for i in 0..*folder_size {
+                let file = folder.join(format!("{}.nef", i));
+                std::fs::File::create(&file).unwrap();
+            }
+        }
+        let mut registry = Registry::default();
+        let collector = Box::new(super::PhotoBacklogCollector {
+            scan_path: temp_dir.path().to_path_buf(),
+            ignored_exts: vec![],
+            age_buckets: vec![1.0],
+            owner: None,
+            group: None,
+        });
+        registry.register_collector(collector);
+        let mut buffer = String::new();
+        encode(&mut buffer, &registry).unwrap();
+
+        // Now check the encoded values.
+        let total_photos = folders_config.iter().sum::<i32>();
+        let photos_string = format!("photo_backlog_counts{{kind=\"photos\"}} {}", total_photos);
+        assert_that(&buffer).contains(&photos_string);
+        let folder_string = format!(
+            "photo_backlog_counts{{kind=\"folders\"}} {}",
+            folders_config.iter().filter(|x| **x > 0).count()
+        );
+        assert!(buffer.contains(&folder_string));
+        for (pos, folder_size) in folders_config.iter().enumerate() {
+            if *folder_size == 0 {
+                continue;
+            }
+            let folder_string = format!(
+                "photo_backlog_folder_sizes{{path=\"{}\"}} {}",
+                format_dir(pos),
+                folder_size
+            );
+            assert_that(&buffer).contains(&folder_string);
+        }
+        assert_that!(buffer).contains("photo_backlog_processing_time_seconds ");
+        let ages_string = format!("photo_backlog_ages_count {}", total_photos);
+        assert_that!(buffer).contains(ages_string);
+        assert_that!(buffer).contains("photo_backlog_errors{kind=\"scan\"} 0");
+    }
+}
