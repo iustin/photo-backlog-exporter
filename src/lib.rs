@@ -376,6 +376,18 @@ mod tests {
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 
+    #[test]
+    fn no_such_dir() {
+        let (temp_dir, _subdir) = get_subdir();
+        let mut missing_dir = temp_dir.path().to_path_buf();
+        missing_dir.push("no-such_dir");
+        let mut backlog = Backlog::new([].into_iter());
+        let config = build_config(&missing_dir, None, None);
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        check_backlog(&backlog, 0, 0, 1);
+    }
+
     enum FailMode {
         NoCheck,
         Good,
