@@ -248,12 +248,15 @@ impl Backlog {
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
+    use std::collections::HashMap;
     use std::ffi::OsString;
     use std::os::unix::fs::MetadataExt;
     use std::path::{Path, PathBuf};
     use std::time::SystemTime;
     use tempfile::tempdir;
     use tempfile::TempDir;
+    extern crate speculoos;
+    use speculoos::prelude::*;
 
     use crate::Config;
     use crate::{Backlog, ROOT_FILE_DIR};
@@ -289,14 +292,20 @@ mod tests {
         expect_files: i64,
         expect_errors: i64,
     ) {
-        assert_eq!(backlog.folders.len(), expect_folders);
-        assert_eq!(backlog.total_files, expect_files);
-        assert_eq!(backlog.total_errors, expect_errors);
+        assert_that!(backlog.folders).has_length(expect_folders);
+        assert_that!(backlog.total_files).is_equal_to(expect_files);
+        assert_that!(backlog.total_errors).is_equal_to(expect_errors);
     }
 
     fn check_has_dir_with(backlog: &Backlog, folder: &str, file_count: i64) {
-        assert!(backlog.folders.contains_key(folder));
-        assert_eq!(backlog.folders.get(folder).unwrap().0, file_count);
+        let folder_sizes: HashMap<String, i64> = backlog
+            .folders
+            .iter()
+            .map(|(key, &value)| (key.clone(), value.0))
+            .collect();
+        assert_that!(&folder_sizes)
+            .named("folder_sizes")
+            .contains_entry(folder.to_string(), file_count);
     }
 
     #[test]
