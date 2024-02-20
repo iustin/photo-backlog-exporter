@@ -18,6 +18,7 @@ const WEEK: f64 = 7.0 * 86400.0;
 
 const ROOT_FILE_DIR: &str = ".";
 
+pub mod cli;
 pub mod prometheus;
 
 /// Returns the first directory from a given path.
