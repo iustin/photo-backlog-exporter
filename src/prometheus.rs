@@ -6,12 +6,13 @@ use std::sync::atomic::AtomicU64;
 use std::time::{Instant, SystemTime};
 
 use prometheus_client::collector::Collector;
-
+use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::DescriptorEncoder;
 use prometheus_client::encoding::EncodeMetric;
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue, LabelValueEncoder};
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::{ConstGauge, Gauge};
+use prometheus_client::registry::Registry;
 
 pub const PROCESSING_TIME_NAME: &str = "photo_backlog_processing_time_seconds";
 pub const PROCESSING_TIME_HELP: &str = "Processing time for scanning the backlog";
@@ -187,9 +188,16 @@ impl Collector for PhotoBacklogCollector {
     }
 }
 
+pub fn encode_to_text(collector: PhotoBacklogCollector) -> Result<String, std::fmt::Error> {
+    let mut registry = Registry::default();
+    registry.register_collector(Box::new(collector));
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).and(Ok(buffer))
+}
+
 #[cfg(test)]
 mod tests {
-    use prometheus_client::{encoding::text::encode, registry::Registry};
+
     use rstest::rstest;
     use tempfile::tempdir;
 
@@ -217,17 +225,14 @@ mod tests {
                 std::fs::File::create(&file).unwrap();
             }
         }
-        let mut registry = Registry::default();
-        let collector = Box::new(super::PhotoBacklogCollector {
+        let collector = super::PhotoBacklogCollector {
             scan_path: temp_dir.path().to_path_buf(),
             ignored_exts: vec![],
             age_buckets: vec![1.0],
             owner: None,
             group: None,
-        });
-        registry.register_collector(collector);
-        let mut buffer = String::new();
-        encode(&mut buffer, &registry).unwrap();
+        };
+        let buffer = super::encode_to_text(collector).unwrap();
 
         // Now check the encoded values.
         let total_photos = folders_config.iter().sum::<i32>();

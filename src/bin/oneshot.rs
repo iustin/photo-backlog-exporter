@@ -4,9 +4,6 @@ use std::path::PathBuf;
 use gumdrop::Options;
 use log::info;
 
-use prometheus_client::encoding::text::encode;
-use prometheus_client::registry::Registry;
-
 use photo_backlog_exporter::*;
 
 #[derive(Debug, Options)]
@@ -57,17 +54,14 @@ fn main() -> Result<(), String> {
             path.display()
         ));
     }
-    let mut registry = Registry::default();
-    let collector = Box::new(prometheus::PhotoBacklogCollector {
+    let collector = prometheus::PhotoBacklogCollector {
         scan_path: path,
         ignored_exts: opts.ignored_exts,
         age_buckets: opts.age_buckets,
         owner: opts.owner,
         group: opts.group,
-    });
-    registry.register_collector(collector);
-    let mut buffer = String::new();
-    encode(&mut buffer, &registry).unwrap();
+    };
+    let buffer = prometheus::encode_to_text(collector).map_err(|e| e.to_string())?;
     println!("{}", buffer);
     Ok(())
 }
