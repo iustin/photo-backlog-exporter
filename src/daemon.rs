@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use axum::{routing::get, Router};
 use prometheus_client::{encoding::text::encode, registry::Registry};
+use tokio::net::TcpListener;
 
 use crate::cli;
 
@@ -25,8 +26,10 @@ pub fn build_app(opts: cli::CliOptions) -> (SocketAddr, Router) {
 }
 
 pub async fn run_daemon(addr: SocketAddr, app: Router) -> Result<(), String> {
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    let listener = TcpListener::bind(&addr)
+        .await
+        .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
+    axum::serve(listener, app)
         .await
         .map_err(|e| format!("Server error: {}", e))
 }

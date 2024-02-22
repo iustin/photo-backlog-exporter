@@ -11,7 +11,7 @@ strip = true
 lto = true
 
 [dependencies]
-axum = "0.6.20"
+axum = "0.7.4"
 tokio = { version = "1", features = ["full"] }
 gumdrop = "0.8.1"
 prometheus-client = "0.22.0"

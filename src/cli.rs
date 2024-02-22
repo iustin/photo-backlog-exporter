@@ -47,7 +47,14 @@ pub struct CliOptions {
 
 pub fn parse_args() -> Result<CliOptions, String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let opts = CliOptions::parse_args_default(args.as_slice()).map_err(|e| e.to_string())?;
+    parse_args_from(args.as_slice())
+}
+
+pub fn parse_args_from<S>(args: &[S]) -> Result<CliOptions, String>
+where
+    S: AsRef<str>,
+{
+    let opts = CliOptions::parse_args_default(args).map_err(|e| e.to_string())?;
     let path = &opts.path;
     if !path.is_dir() {
         return Err(format!(
