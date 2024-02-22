@@ -27,3 +27,4 @@ features = ["auto-color", "humantime"]
 tempfile = "3.10.0"
 rstest = "0.18.2"
 speculoos = "0.11.0"
+axum-test = "14.3.0"

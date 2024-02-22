@@ -40,3 +40,32 @@ async fn metrics(registry: Arc<Registry>) -> String {
     encode(&mut buffer, &registry).unwrap();
     buffer
 }
+
+#[cfg(test)]
+mod tests {
+    use ::axum_test::TestServer;
+    use speculoos::prelude::*;
+
+    use tempfile::tempdir;
+
+    use crate::cli;
+
+    #[tokio::test]
+    async fn test_metrics() {
+        let temp_dir = tempdir().unwrap();
+        let temp_dir_str = temp_dir.path().to_str().expect("convert tempdir to str");
+        std::fs::File::create(temp_dir.path().join("test1.nef")).unwrap();
+        std::fs::File::create(temp_dir.path().join("test2.nef")).unwrap();
+
+        let opts = cli::parse_args_from(&["--path", temp_dir_str]).expect("parse_args");
+        let (_addr, app) = super::build_app(opts);
+        let server = TestServer::new(app).unwrap();
+        let response = server.get("/metrics").await;
+        response.assert_status_ok();
+        let raw_text = response.text();
+        assert_that!(raw_text).contains("photo_backlog_counts{kind=\"folders\"} 1");
+        assert_that!(raw_text).contains("photo_backlog_counts{kind=\"photos\"} 2");
+        assert_that!(raw_text).contains("photo_backlog_ages_count 2");
+        assert_that!(raw_text).contains("photo_backlog_processing_time_seconds ");
+    }
+}
