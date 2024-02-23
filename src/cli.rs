@@ -74,3 +74,19 @@ pub fn collector_from_args(opts: CliOptions) -> crate::prometheus::PhotoBacklogC
         group: opts.group,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use speculoos::prelude::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_path_is_not_dir() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("test1.nef");
+        std::fs::File::create(&file_path).unwrap();
+        let file_path_str = file_path.to_str().expect("convert file path to str");
+        let opts = super::parse_args_from(&["--path", file_path_str]);
+        assert_that!(opts).is_err().contains("not a directory");
+    }
+}
