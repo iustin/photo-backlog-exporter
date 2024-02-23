@@ -125,4 +125,10 @@ mod tests {
         let opts = super::parse_args_from(&["--path", file_path_str]);
         assert_that!(opts).is_err().contains("not a directory");
     }
+
+    #[test]
+    fn test_cli_error() {
+        let opts = super::parse_args_from(&["--no-such-arg"]);
+        assert_that!(opts).is_err().contains("unrecognized option");
+    }
 }
