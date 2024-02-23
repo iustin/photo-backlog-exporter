@@ -1,5 +1,6 @@
 use std::io::Write;
 
+use gumdrop::Options as _;
 use log::info;
 
 use photo_backlog_exporter::*;
@@ -34,6 +35,10 @@ async fn main() -> Result<(), String> {
     enable_logging();
 
     let opts = cli::parse_args()?;
+    if opts.help_requested() {
+        eprintln!("{}", cli::CliOptions::usage());
+        return Ok(());
+    }
     info!("Starting up with the following options: {:?}", opts);
 
     let (addr, app) = daemon::build_app(opts);

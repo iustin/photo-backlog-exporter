@@ -93,6 +93,9 @@ where
     S: AsRef<str>,
 {
     let opts = CliOptions::parse_args_default(args).map_err(|e| e.to_string())?;
+    if opts.help_requested() {
+        return Ok(opts);
+    }
     let path = &opts.path;
     if !path.is_dir() {
         return Err(format!(
