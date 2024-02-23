@@ -12,12 +12,13 @@ const WEEK: f64 = 7.0 * 86400.0;
 /// Example:
 /// ```
 /// use std::ffi::OsString;
-/// assert_eq!(photo_backlog_exporter::parse_exts(""), Vec::<OsString>::from([]));
-/// assert_eq!(photo_backlog_exporter::parse_exts("a"), Vec::<OsString>::from([OsString::from("a")]));
-/// assert_eq!(photo_backlog_exporter::parse_exts("a,"), Vec::<OsString>::from([OsString::from("a")]));
-/// assert_eq!(photo_backlog_exporter::parse_exts("a,b"),
+/// use photo_backlog_exporter::cli::parse_exts;
+/// assert_eq!(parse_exts(""), Vec::<OsString>::from([]));
+/// assert_eq!(parse_exts("a"), Vec::<OsString>::from([OsString::from("a")]));
+/// assert_eq!(parse_exts("a,"), Vec::<OsString>::from([OsString::from("a")]));
+/// assert_eq!(parse_exts("a,b"),
 ///   Vec::<OsString>::from([OsString::from("a"), OsString::from("b")]));
-/// assert_eq!(photo_backlog_exporter::parse_exts("a,,b"),
+/// assert_eq!(parse_exts("a,,b"),
 ///   Vec::<OsString>::from([OsString::from("a"), OsString::from("b")]));
 /// ```
 pub fn parse_exts(s: &str) -> Vec<OsString> {
@@ -31,9 +32,10 @@ pub fn parse_exts(s: &str) -> Vec<OsString> {
 /// with failure handling.
 /// Example:
 /// ```
-/// assert_eq!(photo_backlog_exporter::parse_weeks(""), Ok(Vec::<f64>::from([])));
-/// assert_eq!(photo_backlog_exporter::parse_weeks("0,1"), Ok(Vec::<f64>::from([0.0, 7.0*24.0*3600.0])));
-/// assert!(photo_backlog_exporter::parse_weeks("a").is_err());
+/// use photo_backlog_exporter::cli::parse_weeks;
+/// assert_eq!(parse_weeks(""), Ok(Vec::<f64>::from([])));
+/// assert_eq!(parse_weeks("0,1"), Ok(Vec::<f64>::from([0.0, 7.0*24.0*3600.0])));
+/// assert!(parse_weeks("a").is_err());
 /// ```
 pub fn parse_weeks(s: &str) -> Result<Vec<f64>, ParseFloatError> {
     s.split(',')
