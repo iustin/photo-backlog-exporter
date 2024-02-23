@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs::Metadata;
-use std::num::ParseFloatError;
 use std::option::Option;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
-use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use log::{error, info};
@@ -13,8 +11,6 @@ use walkdir::WalkDir;
 
 use prometheus_client::encoding::{EncodeLabelValue, LabelValueEncoder};
 use prometheus_client::metrics::histogram::Histogram;
-
-const WEEK: f64 = 7.0 * 86400.0;
 
 const ROOT_FILE_DIR: &str = ".";
 
@@ -66,41 +62,6 @@ pub fn relative_age(reference: SystemTime, entry: &walkdir::DirEntry) -> Duratio
         Err(_) => reference,
     };
     reference.duration_since(modified).unwrap_or(Duration::ZERO)
-}
-
-/// Simple conversion of a comma-separated string into a vector of OsString values.
-/// Example:
-/// ```
-/// use std::ffi::OsString;
-/// assert_eq!(photo_backlog_exporter::parse_exts(""), Vec::<OsString>::from([]));
-/// assert_eq!(photo_backlog_exporter::parse_exts("a"), Vec::<OsString>::from([OsString::from("a")]));
-/// assert_eq!(photo_backlog_exporter::parse_exts("a,"), Vec::<OsString>::from([OsString::from("a")]));
-/// assert_eq!(photo_backlog_exporter::parse_exts("a,b"),
-///   Vec::<OsString>::from([OsString::from("a"), OsString::from("b")]));
-/// assert_eq!(photo_backlog_exporter::parse_exts("a,,b"),
-///   Vec::<OsString>::from([OsString::from("a"), OsString::from("b")]));
-/// ```
-pub fn parse_exts(s: &str) -> Vec<OsString> {
-    s.split(',')
-        .filter(|c| !c.is_empty())
-        .map(OsString::from)
-        .collect()
-}
-
-/// Simple conversion of a list of comma-separated week numbers into a vector of second values,
-/// with failure handling.
-/// Example:
-/// ```
-/// assert_eq!(photo_backlog_exporter::parse_weeks(""), Ok(Vec::<f64>::from([])));
-/// assert_eq!(photo_backlog_exporter::parse_weeks("0,1"), Ok(Vec::<f64>::from([0.0, 7.0*24.0*3600.0])));
-/// assert!(photo_backlog_exporter::parse_weeks("a").is_err());
-/// ```
-pub fn parse_weeks(s: &str) -> Result<Vec<f64>, ParseFloatError> {
-    s.split(',')
-        .filter(|c| !c.is_empty())
-        .map(f64::from_str)
-        .map(|r| r.map(|f| f * WEEK))
-        .collect()
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

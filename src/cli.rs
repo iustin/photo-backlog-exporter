@@ -1,11 +1,47 @@
 use std::ffi::OsString;
-
 use std::net::IpAddr;
+use std::num::ParseFloatError;
 use std::path::PathBuf;
-
-use crate::{parse_exts, parse_weeks};
+use std::str::FromStr;
 
 use gumdrop::Options;
+
+const WEEK: f64 = 7.0 * 86400.0;
+
+/// Simple conversion of a comma-separated string into a vector of OsString values.
+/// Example:
+/// ```
+/// use std::ffi::OsString;
+/// assert_eq!(photo_backlog_exporter::parse_exts(""), Vec::<OsString>::from([]));
+/// assert_eq!(photo_backlog_exporter::parse_exts("a"), Vec::<OsString>::from([OsString::from("a")]));
+/// assert_eq!(photo_backlog_exporter::parse_exts("a,"), Vec::<OsString>::from([OsString::from("a")]));
+/// assert_eq!(photo_backlog_exporter::parse_exts("a,b"),
+///   Vec::<OsString>::from([OsString::from("a"), OsString::from("b")]));
+/// assert_eq!(photo_backlog_exporter::parse_exts("a,,b"),
+///   Vec::<OsString>::from([OsString::from("a"), OsString::from("b")]));
+/// ```
+pub fn parse_exts(s: &str) -> Vec<OsString> {
+    s.split(',')
+        .filter(|c| !c.is_empty())
+        .map(OsString::from)
+        .collect()
+}
+
+/// Simple conversion of a list of comma-separated week numbers into a vector of second values,
+/// with failure handling.
+/// Example:
+/// ```
+/// assert_eq!(photo_backlog_exporter::parse_weeks(""), Ok(Vec::<f64>::from([])));
+/// assert_eq!(photo_backlog_exporter::parse_weeks("0,1"), Ok(Vec::<f64>::from([0.0, 7.0*24.0*3600.0])));
+/// assert!(photo_backlog_exporter::parse_weeks("a").is_err());
+/// ```
+pub fn parse_weeks(s: &str) -> Result<Vec<f64>, ParseFloatError> {
+    s.split(',')
+        .filter(|c| !c.is_empty())
+        .map(f64::from_str)
+        .map(|r| r.map(|f| f * WEEK))
+        .collect()
+}
 
 #[derive(Debug, Options)]
 pub struct CliOptions {
