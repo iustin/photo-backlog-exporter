@@ -99,6 +99,8 @@ Optional arguments:
   -a, --age-buckets AGE-BUCKETS
                        Photos age histogram buckets, in weeks (default:
                        1,2,3,4,5,7,10,13,17,20,26,30,35,52,104)
+  -o, --owner OWNER    Optional owner expected for all files
+  -g, --group GROUP    Optional group expected for all files                       
 ```
 
 I hope they are self-explanatory. Well, maybe the `--ignored-exts`:

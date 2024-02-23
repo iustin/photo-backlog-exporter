@@ -76,10 +76,10 @@ pub struct CliOptions {
     )]
     pub age_buckets: Vec<f64>,
 
-    #[options(help = "Owner expected for all files")]
+    #[options(help = "Optional owner expected for all files")]
     pub owner: Option<u32>,
 
-    #[options(help = "Group expected for all files")]
+    #[options(help = "Optional group expected for all files")]
     pub group: Option<u32>,
 }
 
