@@ -94,11 +94,10 @@ impl Collector for PhotoBacklogCollector {
                     .expect("More than 2^63 entries in the map?!"),
             );
 
-        errors_fam
-            .get_or_create(&ErrorLabels {
-                kind: super::ErrorType::Scan,
-            })
-            .set(backlog.total_errors);
+        for (kind, count) in &backlog.total_errors {
+            let labels = ErrorLabels { kind: *kind };
+            errors_fam.get_or_create(&labels).set(*count);
+        }
 
         for (path, (cnt, age)) in backlog.folders.drain() {
             let labels = FolderLabels { path };

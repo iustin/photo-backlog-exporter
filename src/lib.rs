@@ -64,15 +64,17 @@ pub fn relative_age(reference: SystemTime, entry: &walkdir::DirEntry) -> Duratio
     reference.duration_since(modified).unwrap_or(Duration::ZERO)
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum ErrorType {
     Scan,
+    Ownership,
 }
 
 impl EncodeLabelValue for ErrorType {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
         let s = match self {
             ErrorType::Scan => "scan",
+            ErrorType::Ownership => "ownership",
         };
         EncodeLabelValue::encode(&s, encoder)
     }
@@ -115,7 +117,7 @@ pub struct Config<'a> {
 
 #[derive(Debug)]
 pub struct Backlog {
-    pub total_errors: i64,
+    pub total_errors: HashMap<ErrorType, i64>,
     pub total_files: i64,
     pub folders: HashMap<String, (i64, f64)>,
     pub ages_histogram: Histogram,
@@ -124,7 +126,7 @@ pub struct Backlog {
 impl Backlog {
     pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
         Self {
-            total_errors: 0,
+            total_errors: HashMap::from([(ErrorType::Scan, 0), (ErrorType::Ownership, 0)]),
             total_files: 0,
             folders: HashMap::new(),
             ages_histogram: Histogram::new(buckets),
@@ -134,8 +136,11 @@ impl Backlog {
         self.total_files += 1;
     }
 
-    pub fn record_error(&mut self) {
-        self.total_errors += 1;
+    pub fn record_error(&mut self, err: ErrorType) {
+        self.total_errors
+            .entry(err)
+            .and_modify(|f| *f += 1)
+            .or_insert(1);
     }
 
     pub fn scan(&mut self, config: &Config, now: SystemTime) {
@@ -143,19 +148,19 @@ impl Backlog {
             match entry {
                 Err(e) => {
                     info!("Error while scanning recursively: {}", e);
-                    self.record_error();
+                    self.record_error(ErrorType::Scan);
                 }
                 Ok(entry) => {
                     if entry.file_type().is_dir() {
                         match entry.metadata() {
                             Ok(m) => {
                                 if !check_ownership(config, entry.path(), &m, "Directory") {
-                                    self.record_error();
+                                    self.record_error(ErrorType::Ownership);
                                 }
                             }
                             Err(e) => {
                                 info!("Can't stat directory {}: {}", entry.path().display(), e);
-                                self.record_error();
+                                self.record_error(ErrorType::Scan);
                             }
                         }
                         // We don't track directories by themselves,
@@ -221,8 +226,8 @@ mod tests {
     extern crate speculoos;
     use speculoos::prelude::*;
 
-    use crate::Config;
     use crate::{Backlog, ROOT_FILE_DIR};
+    use crate::{Config, ErrorType};
 
     const SUBDIR: &str = "dir1";
 
@@ -253,11 +258,13 @@ mod tests {
         backlog: &Backlog,
         expect_folders: usize,
         expect_files: i64,
-        expect_errors: i64,
+        scan_errors: i64,
+        ownership_errors: i64,
     ) {
         assert_that!(backlog.folders).has_length(expect_folders);
         assert_that!(backlog.total_files).is_equal_to(expect_files);
-        assert_that!(backlog.total_errors).is_equal_to(expect_errors);
+        assert_that!(backlog.total_errors).contains_entry(ErrorType::Scan, scan_errors);
+        assert_that!(backlog.total_errors).contains_entry(ErrorType::Ownership, ownership_errors)
     }
 
     fn check_has_dir_with(backlog: &Backlog, folder: &str, file_count: i64) {
@@ -278,7 +285,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0);
     }
     #[test]
     fn empty_dir_is_empty() {
@@ -287,7 +294,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0);
     }
     #[test]
     fn no_extension_is_ignored() {
@@ -297,7 +304,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0);
     }
     #[test]
     fn ignored_extension_is_ignored() {
@@ -310,7 +317,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 0);
+        check_backlog(&backlog, 1, 1, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[test]
@@ -321,7 +328,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 0);
+        check_backlog(&backlog, 1, 1, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[test]
@@ -333,7 +340,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 2, 0);
+        check_backlog(&backlog, 1, 2, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 2);
     }
     #[test]
@@ -344,7 +351,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 0);
+        check_backlog(&backlog, 1, 1, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 
@@ -357,7 +364,7 @@ mod tests {
         let config = build_config(&missing_dir, None, None);
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 0, 0, 1);
+        check_backlog(&backlog, 0, 0, 1, 0);
     }
 
     enum FailMode {
@@ -391,7 +398,7 @@ mod tests {
             (FailMode::Bad, _) | (_, FailMode::Bad) => 1,
             _ => 0,
         };
-        check_backlog(&backlog, 1, 1, expected_errors);
+        check_backlog(&backlog, 1, 1, 0, expected_errors);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 }
