@@ -113,6 +113,8 @@ pub struct Config<'a> {
     pub ignored_exts: &'a [OsString],
     pub owner: Option<u32>,
     pub group: Option<u32>,
+    pub file_mode: Option<u8>,
+    pub dir_mode: Option<u8>,
 }
 
 #[derive(Debug)]
@@ -231,12 +233,20 @@ mod tests {
 
     const SUBDIR: &str = "dir1";
 
-    fn build_config(p: &Path, owner: Option<u32>, group: Option<u32>) -> Config {
+    fn build_config(
+        p: &Path,
+        owner: Option<u32>,
+        group: Option<u32>,
+        file_mode: Option<u8>,
+        dir_mode: Option<u8>,
+    ) -> Config {
         Config {
             root_path: p,
             ignored_exts: &[],
             owner,
             group,
+            file_mode,
+            dir_mode,
         }
     }
 
@@ -281,7 +291,7 @@ mod tests {
     #[test]
     fn empty_dir() {
         let temp_dir = tempdir().unwrap();
-        let config = build_config(temp_dir.path(), None, None);
+        let config = build_config(temp_dir.path(), None, None, None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -290,7 +300,7 @@ mod tests {
     #[test]
     fn empty_dir_is_empty() {
         let (temp_dir, _) = get_subdir();
-        let config = build_config(temp_dir.path(), None, None);
+        let config = build_config(temp_dir.path(), None, None, None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -300,7 +310,7 @@ mod tests {
     fn no_extension_is_ignored() {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "readme");
-        let config = build_config(temp_dir.path(), None, None);
+        let config = build_config(temp_dir.path(), None, None, None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -311,7 +321,7 @@ mod tests {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "file.nef");
         add_file(&subdir, "file.xmp");
-        let mut config = build_config(temp_dir.path(), None, None);
+        let mut config = build_config(temp_dir.path(), None, None, None, None);
         let exts = [OsString::from("xmp")];
         config.ignored_exts = &exts;
         let mut backlog = Backlog::new([].into_iter());
@@ -324,7 +334,7 @@ mod tests {
     fn one_dir_one_file() {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "file.nef");
-        let config = build_config(temp_dir.path(), None, None);
+        let config = build_config(temp_dir.path(), None, None, None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -336,7 +346,7 @@ mod tests {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "dsc001.nef");
         add_file(&subdir, "dsc002.jpg");
-        let config = build_config(temp_dir.path(), None, None);
+        let config = build_config(temp_dir.path(), None, None, None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -347,7 +357,7 @@ mod tests {
     fn file_in_root_dir() {
         let temp_dir = tempdir().unwrap();
         add_file(temp_dir.path(), "file.nef");
-        let config = build_config(temp_dir.path(), None, None);
+        let config = build_config(temp_dir.path(), None, None, None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -361,7 +371,7 @@ mod tests {
         let mut missing_dir = temp_dir.path().to_path_buf();
         missing_dir.push("no-such_dir");
         let mut backlog = Backlog::new([].into_iter());
-        let config = build_config(&missing_dir, None, None);
+        let config = build_config(&missing_dir, None, None, None, None);
         let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 0, 0, 1, 0);
@@ -390,7 +400,7 @@ mod tests {
         let user_check = generate_check(&user_mode, m.uid());
         let group_check = generate_check(&group_mode, m.gid());
         // No permissions check.
-        let config = build_config(temp_dir.path(), user_check, group_check);
+        let config = build_config(temp_dir.path(), user_check, group_check, None, None);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
