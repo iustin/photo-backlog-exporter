@@ -18,7 +18,8 @@ The directory structure is based just on the first-level directories; anything
 deeper will be aggregated to the first-level directory. So for example
 the output of this `tree` command:
 
-```
+```shell
+$ tree
 .
 ├── 2023-11-01 Long trip
 │   ├── Day 1
@@ -35,13 +36,13 @@ the output of this `tree` command:
 
 Will be exported as:
 
-* 4 total files pending; the `xmp` file is ignored by default, see in
+- 4 total files pending; the `xmp` file is ignored by default, see in
   the usage section;
-* 2 directories (`2023-11-01 Long trip` and `2023-11-19 Some
+- 2 directories (`2023-11-01 Long trip` and `2023-11-19 Some
   pictures`);
-* for each directory, an aggregated "age" will be computed (sum of
+- for each directory, an aggregated "age" will be computed (sum of
   ages, relative to the current time);
-* and an overall histogram with pending file ages will be exported;
+- and an overall histogram with pending file ages will be exported;
 
 ## Motivation
 
@@ -64,8 +65,8 @@ future I plan to add permission/ownership checks as well.
 Run the usual `cargo build -r`. Copy the resulting binary (from
 `target/release`) somewhere, then run it. You have two options:
 
-* run the `photo-backlog-exporter` binary as a daemon
-* run the `oneshot` binary as a text exporter, and save its
+- run the `photo-backlog-exporter` binary as a daemon
+- run the `oneshot` binary as a text exporter, and save its
   output somewhere so that the common `node-exporter` can pick it up.
 
 Since this doesn't need any special rights, just to be able to look at
@@ -80,15 +81,14 @@ systemd unit in `examples/systemd.server`. This is accompanied by the
 Note that the binary expects at least the path to the root of the
 "incoming" photos directory, i.e. a minimal invocation is:
 
-```
+```shell
 photo-backlog-exporter -P /my/incoming/photos/directory
 ```
 
 The full list of arguments is:
 
-```
-Usage: ./target/debug/photo-backlog-exporter [OPTIONS]
-
+```shell
+$ photo-backlog-exporter --help
 Optional arguments:
   -h, --help           print help message
   -p, --port PORT      port to listen on (default: 8813)
@@ -100,7 +100,7 @@ Optional arguments:
                        Photos age histogram buckets, in weeks (default:
                        1,2,3,4,5,7,10,13,17,20,26,30,35,52,104)
   -o, --owner OWNER    Optional owner expected for all files
-  -g, --group GROUP    Optional group expected for all files                       
+  -g, --group GROUP    Optional group expected for all files
 ```
 
 I hope they are self-explanatory. Well, maybe the `--ignored-exts`:
