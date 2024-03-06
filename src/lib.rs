@@ -108,6 +108,36 @@ pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -
     good
 }
 
+pub fn check_mode(config: &Config, path: &Path, m: &Metadata) -> bool {
+    let mut good = true;
+    let mut kind = "(unknown)";
+    let mut expected = 0o0;
+    let actual = m.mode() & 0o777;
+    if m.is_dir() {
+        kind = "directory";
+        if let Some(dir_mode) = config.dir_mode {
+            expected = dir_mode;
+            good &= dir_mode == actual;
+        }
+    } else if m.is_file() {
+        kind = "file";
+        if let Some(file_mode) = config.file_mode {
+            expected = file_mode;
+            good &= file_mode == actual;
+        }
+    }
+    if !good {
+        info!(
+            "{} '{}' has wrong mode {:o}, expected {:o}",
+            kind,
+            path.display(),
+            actual,
+            expected,
+        );
+    }
+    good
+}
+
 pub struct Config<'a> {
     pub root_path: &'a Path,
     pub ignored_exts: &'a [OsString],
@@ -153,20 +183,28 @@ impl Backlog {
                     self.record_error(ErrorType::Scan);
                 }
                 Ok(entry) => {
+                    let path = entry.path();
+                    let metadata = match entry.metadata() {
+                        Ok(m) => m,
+                        Err(e) => {
+                            info!("Can't stat '{}': {}", path.display(), e);
+                            self.record_error(ErrorType::Scan);
+                            continue;
+                        }
+                    };
                     if entry.file_type().is_dir() {
-                        match entry.metadata() {
-                            Ok(m) => {
-                                if !check_ownership(config, entry.path(), &m, "Directory") {
-                                    self.record_error(ErrorType::Ownership);
-                                }
-                            }
-                            Err(e) => {
-                                info!("Can't stat directory {}: {}", entry.path().display(), e);
-                                self.record_error(ErrorType::Scan);
-                            }
+                        if !check_ownership(config, path, &metadata, "Directory") {
+                            self.record_error(ErrorType::Ownership);
+                        }
+                        if !check_mode(config, path, &metadata) {
+                            self.record_error(ErrorType::Ownership);
                         }
                         // We don't track directories by themselves,
                         // only via file contents.
+                        continue;
+                    }
+                    if !entry.file_type().is_file() {
+                        // We don't care about other file types.
                         continue;
                     }
                     match entry.path().extension() {
@@ -181,6 +219,9 @@ impl Backlog {
                     self.record_file();
 
                     // Here it's not an ignored entry, so let's process it.
+                    if !check_mode(config, path, &metadata) {
+                        self.record_error(ErrorType::Ownership);
+                    }
 
                     // Find owner top-level dir.
                     let parent = match relative_top(config.root_path, entry.path()) {
@@ -221,6 +262,7 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::OsString;
     use std::os::unix::fs::MetadataExt;
+    use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
     use std::time::SystemTime;
     use tempfile::tempdir;
@@ -382,8 +424,9 @@ mod tests {
         Good,
         Bad,
     }
+
     #[rstest]
-    fn test_permissions(
+    fn test_ownership(
         #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] user_mode: FailMode,
         #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] group_mode: FailMode,
     ) {
@@ -410,5 +453,60 @@ mod tests {
         };
         check_backlog(&backlog, 1, 1, 0, expected_errors);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
+    }
+
+    #[rstest]
+    fn test_permissions(
+        // This is just the file permissions, not the directory. Directory
+        // always gets execute on user.
+        #[values(0o664, 0o644, 0o660, 0o640, 0o600)] perm: u32,
+        #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] file_mode: FailMode,
+        #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] dir_mode: FailMode,
+    ) {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let (temp_dir, subdir) = get_subdir();
+        let fname = add_file(&subdir, "file.nef");
+        fn dir_mode_from_file(perm: u32) -> u32 {
+            perm | 0o100
+        }
+        fn maybe_dir_mode(is_dir: bool, perm: u32) -> u32 {
+            if is_dir {
+                dir_mode_from_file(perm)
+            } else {
+                perm
+            }
+        }
+        fn generate_check(mode: &FailMode, perm: u32, is_dir: bool) -> Option<u32> {
+            let bad_perm = if perm == 0o600 { 0o640 } else { 0o600 };
+            match mode {
+                FailMode::NoCheck => None,
+                FailMode::Good => Some(maybe_dir_mode(is_dir, perm)),
+                FailMode::Bad => Some(maybe_dir_mode(is_dir, bad_perm)),
+            }
+        }
+        let dir_check = generate_check(&dir_mode, perm, true);
+        let file_check = generate_check(&file_mode, perm, false);
+        // Set the actual permissions on the file first, then the two directories.
+        std::fs::set_permissions(fname, std::fs::Permissions::from_mode(perm)).unwrap();
+        let dir_perms = std::fs::Permissions::from_mode(dir_mode_from_file(perm));
+        std::fs::set_permissions(&temp_dir, dir_perms.clone()).unwrap();
+        std::fs::set_permissions(&subdir, dir_perms).unwrap();
+        // Now actually do the permissions check.
+        let config = build_config(temp_dir.path(), None, None, file_check, dir_check);
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        let file_errors = match file_mode {
+            FailMode::Bad => 1,
+            _ => 0,
+        };
+        let dir_errors = match dir_mode {
+            FailMode::Bad => 2,
+            _ => 0,
+        };
+        let expected_errors = file_errors + dir_errors;
+        check_backlog(&backlog, 1, 1, 0, expected_errors);
+        check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
     }
 }
