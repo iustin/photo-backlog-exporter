@@ -216,9 +216,11 @@ impl Backlog {
                         }
                     }
 
-                    self.record_file();
-
                     // Here it's not an ignored entry, so let's process it.
+                    self.record_file();
+                    if !check_ownership(config, path, &metadata, "File") {
+                        self.record_error(ErrorType::Ownership);
+                    }
                     if !check_mode(config, path, &metadata) {
                         self.record_error(ErrorType::Ownership);
                     }
@@ -448,7 +450,9 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         let expected_errors = match (user_mode, group_mode) {
-            (FailMode::Bad, _) | (_, FailMode::Bad) => 1,
+            // The expected errors is two, because both the top level directory
+            // and the file should fail the check.
+            (FailMode::Bad, _) | (_, FailMode::Bad) => 2,
             _ => 0,
         };
         check_backlog(&backlog, 1, 1, 0, expected_errors);
