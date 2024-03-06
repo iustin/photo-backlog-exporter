@@ -113,8 +113,8 @@ pub struct Config<'a> {
     pub ignored_exts: &'a [OsString],
     pub owner: Option<u32>,
     pub group: Option<u32>,
-    pub file_mode: Option<u8>,
-    pub dir_mode: Option<u8>,
+    pub file_mode: Option<u32>,
+    pub dir_mode: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -237,8 +237,8 @@ mod tests {
         p: &Path,
         owner: Option<u32>,
         group: Option<u32>,
-        file_mode: Option<u8>,
-        dir_mode: Option<u8>,
+        file_mode: Option<u32>,
+        dir_mode: Option<u32>,
     ) -> Config {
         Config {
             root_path: p,
