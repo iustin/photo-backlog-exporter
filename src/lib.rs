@@ -56,11 +56,8 @@ pub fn relative_top(root: &Path, p: &Path) -> Option<PathBuf> {
 }
 
 /// Returns the age of a file relative to a given timestamp, or zero if the file is newer.
-pub fn relative_age(reference: SystemTime, entry: &walkdir::DirEntry) -> Duration {
-    let modified = match entry.metadata() {
-        Ok(m) => m.modified().unwrap_or(reference),
-        Err(_) => reference,
-    };
+pub fn relative_age(reference: SystemTime, m: &Metadata) -> Duration {
+    let modified = m.modified().unwrap_or(reference);
     reference.duration_since(modified).unwrap_or(Duration::ZERO)
 }
 
@@ -244,7 +241,7 @@ impl Backlog {
             let folder = String::from(parent.to_string_lossy());
 
             // Now update folders struct.
-            let age = relative_age(now, &entry).as_secs_f64();
+            let age = relative_age(now, &metadata).as_secs_f64();
             self.folders
                 .entry(folder)
                 .and_modify(|(c, a)| {
