@@ -513,4 +513,39 @@ mod tests {
         check_backlog(&backlog, 1, 1, 0, expected_errors);
         check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
     }
+
+    #[test]
+    fn ignored_files_are_ignored() {
+        let (temp_dir, subdir) = get_subdir();
+        // File with good extension.
+        let _nef = add_file(&subdir, "file.nef");
+        // File with ignored extension.
+        let readme = add_file(&subdir, "readme.md");
+        // File with no extension.
+        let _checksums = add_file(&subdir, "SHA1SUMS");
+        let m = std::fs::metadata(readme).expect("Can't stat just created file!");
+        let wrong_mode = if m.mode() == 0o644 { 0o600 } else { 0o644 };
+        let wrong_uid = m.uid() + 1;
+        let wrong_gid = m.gid() + 1;
+
+        let mut config = build_config(
+            temp_dir.path(),
+            Some(wrong_uid),
+            Some(wrong_gid),
+            Some(wrong_mode),
+            None,
+        );
+        let exts = [OsString::from("md")];
+        config.ignored_exts = &exts;
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        // The top-level directory and sub-directory have wrong ownership (the
+        // assumption here is that both temp directories and temp files have the
+        // same ownership, which is generally correct), and the real file as
+        // well, but the two extra files are ignored.
+        let expected_errors = 3;
+        check_backlog(&backlog, 1, 1, 0, expected_errors);
+        check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
+    }
 }
