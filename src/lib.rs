@@ -176,84 +176,84 @@ impl Backlog {
     }
 
     pub fn scan(&mut self, config: &Config, now: SystemTime) {
-        for entry in WalkDir::new(config.root_path) {
-            match entry {
+        for maybe_entry in WalkDir::new(config.root_path) {
+            let entry = match maybe_entry {
                 Err(e) => {
                     info!("Error while scanning recursively: {}", e);
                     self.record_error(ErrorType::Scan);
+                    continue;
                 }
-                Ok(entry) => {
-                    let path = entry.path();
-                    let metadata = match entry.metadata() {
-                        Ok(m) => m,
-                        Err(e) => {
-                            info!("Can't stat '{}': {}", path.display(), e);
-                            self.record_error(ErrorType::Scan);
-                            continue;
-                        }
-                    };
-                    if entry.file_type().is_dir() {
-                        if !check_ownership(config, path, &metadata, "Directory") {
-                            self.record_error(ErrorType::Ownership);
-                        }
-                        if !check_mode(config, path, &metadata) {
-                            self.record_error(ErrorType::Ownership);
-                        }
-                        // We don't track directories by themselves,
-                        // only via file contents.
+                Ok(entry) => entry,
+            };
+            let path = entry.path();
+            let metadata = match entry.metadata() {
+                Ok(m) => m,
+                Err(e) => {
+                    info!("Can't stat '{}': {}", path.display(), e);
+                    self.record_error(ErrorType::Scan);
+                    continue;
+                }
+            };
+            if entry.file_type().is_dir() {
+                if !check_ownership(config, path, &metadata, "Directory") {
+                    self.record_error(ErrorType::Ownership);
+                }
+                if !check_mode(config, path, &metadata) {
+                    self.record_error(ErrorType::Ownership);
+                }
+                // We don't track directories by themselves,
+                // only via file contents.
+                continue;
+            }
+            if !entry.file_type().is_file() {
+                // We don't care about other file types.
+                continue;
+            }
+            match entry.path().extension() {
+                None => continue,
+                Some(ext) => {
+                    if config.ignored_exts.iter().any(|c| c == ext) {
                         continue;
                     }
-                    if !entry.file_type().is_file() {
-                        // We don't care about other file types.
-                        continue;
-                    }
-                    match entry.path().extension() {
-                        None => continue,
-                        Some(ext) => {
-                            if config.ignored_exts.iter().any(|c| c == ext) {
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Here it's not an ignored entry, so let's process it.
-                    self.record_file();
-                    if !check_ownership(config, path, &metadata, "File") {
-                        self.record_error(ErrorType::Ownership);
-                    }
-                    if !check_mode(config, path, &metadata) {
-                        self.record_error(ErrorType::Ownership);
-                    }
-
-                    // Find owner top-level dir.
-                    let parent = match relative_top(config.root_path, entry.path()) {
-                        Some(x) => x,
-                        None => {
-                            error!(
-                                "Can't determine parent path for {}",
-                                entry.path().to_string_lossy()
-                            );
-                            continue;
-                        }
-                    };
-
-                    // And convert to valid UTF-8 string via lossy
-                    // conversion. But at least we're back in safe land.
-                    let folder = String::from(parent.to_string_lossy());
-
-                    // Now update folders struct.
-                    let age = relative_age(now, &entry).as_secs_f64();
-                    self.folders
-                        .entry(folder)
-                        .and_modify(|(c, a)| {
-                            *c += 1;
-                            *a += age;
-                        })
-                        .or_insert((1, age));
-                    // And observe the age for the ages histogram.
-                    self.ages_histogram.observe(age);
                 }
             }
+
+            // Here it's not an ignored entry, so let's process it.
+            self.record_file();
+            if !check_ownership(config, path, &metadata, "File") {
+                self.record_error(ErrorType::Ownership);
+            }
+            if !check_mode(config, path, &metadata) {
+                self.record_error(ErrorType::Ownership);
+            }
+
+            // Find owner top-level dir.
+            let parent = match relative_top(config.root_path, entry.path()) {
+                Some(x) => x,
+                None => {
+                    error!(
+                        "Can't determine parent path for {}",
+                        entry.path().to_string_lossy()
+                    );
+                    continue;
+                }
+            };
+
+            // And convert to valid UTF-8 string via lossy
+            // conversion. But at least we're back in safe land.
+            let folder = String::from(parent.to_string_lossy());
+
+            // Now update folders struct.
+            let age = relative_age(now, &entry).as_secs_f64();
+            self.folders
+                .entry(folder)
+                .and_modify(|(c, a)| {
+                    *c += 1;
+                    *a += age;
+                })
+                .or_insert((1, age));
+            // And observe the age for the ages histogram.
+            self.ages_histogram.observe(age);
         }
     }
 }
