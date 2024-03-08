@@ -545,4 +545,38 @@ mod tests {
         check_backlog(&backlog, 1, 1, 0, expected_errors);
         check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
     }
+
+    #[test]
+    fn test_scan_errors() {
+        let temp_dir = tempdir().unwrap();
+        let _f1 = add_file(temp_dir.path(), "file1.nef");
+        // File f2 is ignored (for statistics), but current semantics is that
+        // all items should be scanable.
+        let _f2 = add_file(temp_dir.path(), "file1.xmp");
+        let _f3 = add_file(temp_dir.path(), "file2.nef");
+        // Sigh, Rust. Do the dance of adding a finalizer that resets the
+        // permissions to something that allows the directory and its files to
+        // be deleted.
+        struct Cleanup<'a> {
+            path: &'a Path,
+        }
+        impl<'a> Drop for Cleanup<'a> {
+            fn drop(&mut self) {
+                std::fs::set_permissions(self.path, std::fs::Permissions::from_mode(0o700))
+                    .unwrap();
+            }
+        }
+        let _cleanup = Cleanup {
+            path: temp_dir.path(),
+        };
+        std::fs::set_permissions(&temp_dir, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let mut config = build_config(temp_dir.path(), None, None, None, None);
+        let exts = [OsString::from("xmp")];
+        config.ignored_exts = &exts;
+        let mut backlog = Backlog::new([].into_iter());
+        let now = SystemTime::now();
+        backlog.scan(&config, now);
+        std::fs::set_permissions(&temp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        check_backlog(&backlog, 0, 0, 3, 0);
+    }
 }
