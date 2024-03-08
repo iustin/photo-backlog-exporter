@@ -24,6 +24,8 @@ pub struct PhotoBacklogCollector {
     pub age_buckets: Vec<f64>,
     pub owner: Option<u32>,
     pub group: Option<u32>,
+    pub dir_mode: Option<u32>,
+    pub file_mode: Option<u32>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -232,6 +234,8 @@ mod tests {
             age_buckets: vec![1.0],
             owner: None,
             group: None,
+            dir_mode: None,
+            file_mode: None,
         };
         let buffer = super::encode_to_text(collector).unwrap();
 
@@ -259,5 +263,6 @@ mod tests {
         let ages_string = format!("photo_backlog_ages_count {}", total_photos);
         assert_that!(buffer).contains(ages_string);
         assert_that!(buffer).contains("photo_backlog_errors{kind=\"scan\"} 0");
+        assert_that!(buffer).contains("photo_backlog_errors{kind=\"ownership\"} 0");
     }
 }

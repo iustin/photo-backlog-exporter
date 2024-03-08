@@ -90,17 +90,19 @@ The full list of arguments is:
 ```shell
 $ photo-backlog-exporter --help
 Optional arguments:
-  -h, --help           print help message
-  -p, --port PORT      port to listen on (default: 8813)
-  -l, --listen LISTEN  address to listen on (default: ::)
-  -P, --path PATH      path to root of incoming photo directory
+  -h, --help                 print help message
+  -p, --port PORT            port to listen on (default: 8813)
+  -l, --listen LISTEN        address to listen on (default: ::)
+  -P, --path PATH            path to root of incoming photo directory
   -i, --ignored-exts IGNORED-EXTS
-                       ignored file extension (default: xmp,lua,DS_Store)
+                             ignored file extension (default: xmp,lua,DS_Store)
   -a, --age-buckets AGE-BUCKETS
-                       Photos age histogram buckets, in weeks (default:
-                       1,2,3,4,5,7,10,13,17,20,26,30,35,52,104)
-  -o, --owner OWNER    Optional owner expected for all files
-  -g, --group GROUP    Optional group expected for all files
+                             Photos age histogram buckets, in weeks (default: 1,2,3,4,5,7,10,13,17,20,26,30,35,52,104)
+  -o, --owner OWNER          Optional owner expected for all files
+  -g, --group GROUP          Optional group expected for all files
+  -d, --dir-mode DIR-MODE    Optional numeric mode (permissions) expected for directories, e.g 750
+  -f, --file-mode FILE-MODE  Optional numeric mode (permissions) expected for files, e.g. 640
+
 ```
 
 I hope they are self-explanatory. Well, maybe the `--ignored-exts`:

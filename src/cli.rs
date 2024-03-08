@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 use std::net::IpAddr;
-use std::num::ParseFloatError;
+use std::num::{ParseFloatError, ParseIntError};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -45,6 +45,18 @@ pub fn parse_weeks(s: &str) -> Result<Vec<f64>, ParseFloatError> {
         .collect()
 }
 
+/// Parses the string as an octal number.
+/// Example:
+/// ```
+/// use photo_backlog_exporter::cli::parse_octal_mode;
+/// assert_eq!(parse_octal_mode("0"), Ok(0));
+/// assert_eq!(parse_octal_mode("777"), Ok(0o777));
+/// assert_eq!(parse_octal_mode("640"), Ok(0o640));
+/// assert!(parse_octal_mode("a").is_err());
+pub fn parse_octal_mode(mode_str: &str) -> Result<u32, ParseIntError> {
+    u32::from_str_radix(mode_str, 8)
+}
+
 #[derive(Debug, Options)]
 pub struct CliOptions {
     #[options(help = "print help message")]
@@ -81,6 +93,18 @@ pub struct CliOptions {
 
     #[options(help = "Optional group expected for all files")]
     pub group: Option<u32>,
+
+    #[options(
+        help = "Optional numeric mode (permissions) expected for directories, e.g 750",
+        parse(try_from_str = "parse_octal_mode")
+    )]
+    pub dir_mode: Option<u32>,
+
+    #[options(
+        help = "Optional numeric mode (permissions) expected for files, e.g. 640",
+        parse(try_from_str = "parse_octal_mode")
+    )]
+    pub file_mode: Option<u32>,
 }
 
 pub fn parse_args() -> Result<CliOptions, String> {
@@ -113,11 +137,15 @@ pub fn collector_from_args(opts: CliOptions) -> crate::prometheus::PhotoBacklogC
         age_buckets: opts.age_buckets,
         owner: opts.owner,
         group: opts.group,
+        dir_mode: opts.dir_mode,
+        file_mode: opts.file_mode,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsString;
+
     use speculoos::prelude::*;
     use tempfile::tempdir;
 
@@ -135,5 +163,27 @@ mod tests {
     fn test_cli_error() {
         let opts = super::parse_args_from(&["--no-such-arg"]);
         assert_that!(opts).is_err().contains("unrecognized option");
+    }
+
+    #[test]
+    fn test_args() {
+        let temp_dir = tempdir().unwrap();
+        let temp_dir_str = temp_dir
+            .path()
+            .to_str()
+            .expect("convert temp dir path to str");
+        let opts = super::parse_args_from(&[
+            "--path",
+            temp_dir_str,
+            "--dir-mode",
+            "750",
+            "--ignored-exts",
+            "xmp,info",
+        ]);
+        let opts = opts.expect("parse args is successful");
+        assert_that!(&opts.dir_mode).is_equal_to(Some(0o750));
+        assert_that!(&opts.file_mode).is_equal_to(None);
+        let expected_exts = vec![OsString::from("xmp"), OsString::from("info")];
+        assert_that!(opts.ignored_exts).is_equal_to(expected_exts);
     }
 }
