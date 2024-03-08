@@ -429,6 +429,8 @@ mod tests {
         #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] user_mode: FailMode,
         #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] group_mode: FailMode,
     ) {
+        let _ = env_logger::builder().is_test(true).try_init();
+
         let temp_dir = tempdir().unwrap();
         let fname = add_file(temp_dir.path(), "file.nef");
         let m = std::fs::metadata(fname).expect("Can't stat just created file!");
