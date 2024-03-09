@@ -31,7 +31,8 @@ fn test_ownership_logs() {
     assert_that!(backlog.folders).has_length(1);
     assert_that!(backlog.total_files).is_equal_to(1);
     assert_that!(backlog.total_errors).contains_entry(ErrorType::Scan, 0);
-    assert_that!(backlog.total_errors).contains_entry(ErrorType::Ownership, 3);
+    assert_that!(backlog.total_errors).contains_entry(ErrorType::Ownership, 2);
+    assert_that!(backlog.total_errors).contains_entry(ErrorType::Permissions, 1);
     testing_logger::validate(|captured_logs| {
         let v: Vec<String> = captured_logs.iter().map(|e| e.body.clone()).collect();
         assert_that!(v).matching_contains(|val| val.contains("has wrong owner:group"));

@@ -65,6 +65,7 @@ pub fn relative_age(reference: SystemTime, m: &Metadata) -> Duration {
 pub enum ErrorType {
     Scan,
     Ownership,
+    Permissions,
 }
 
 impl EncodeLabelValue for ErrorType {
@@ -72,6 +73,7 @@ impl EncodeLabelValue for ErrorType {
         let s = match self {
             ErrorType::Scan => "scan",
             ErrorType::Ownership => "ownership",
+            ErrorType::Permissions => "permissions",
         };
         EncodeLabelValue::encode(&s, encoder)
     }
@@ -155,7 +157,11 @@ pub struct Backlog {
 impl Backlog {
     pub fn new(buckets: impl Iterator<Item = f64>) -> Self {
         Self {
-            total_errors: HashMap::from([(ErrorType::Scan, 0), (ErrorType::Ownership, 0)]),
+            total_errors: HashMap::from([
+                (ErrorType::Scan, 0),
+                (ErrorType::Ownership, 0),
+                (ErrorType::Permissions, 0),
+            ]),
             total_files: 0,
             folders: HashMap::new(),
             ages_histogram: Histogram::new(buckets),
@@ -196,7 +202,7 @@ impl Backlog {
                     self.record_error(ErrorType::Ownership);
                 }
                 if !check_mode(config, path, &metadata) {
-                    self.record_error(ErrorType::Ownership);
+                    self.record_error(ErrorType::Permissions);
                 }
                 // We don't track directories by themselves,
                 // only via file contents.
@@ -221,7 +227,7 @@ impl Backlog {
                 self.record_error(ErrorType::Ownership);
             }
             if !check_mode(config, path, &metadata) {
-                self.record_error(ErrorType::Ownership);
+                self.record_error(ErrorType::Permissions);
             }
 
             // Find owner top-level dir.
@@ -311,11 +317,14 @@ mod tests {
         expect_files: i64,
         scan_errors: i64,
         ownership_errors: i64,
+        permissions_errors: i64,
     ) {
         assert_that!(backlog.folders).has_length(expect_folders);
         assert_that!(backlog.total_files).is_equal_to(expect_files);
         assert_that!(backlog.total_errors).contains_entry(ErrorType::Scan, scan_errors);
-        assert_that!(backlog.total_errors).contains_entry(ErrorType::Ownership, ownership_errors)
+        assert_that!(backlog.total_errors).contains_entry(ErrorType::Ownership, ownership_errors);
+        assert_that!(backlog.total_errors)
+            .contains_entry(ErrorType::Permissions, permissions_errors);
     }
 
     fn check_has_dir_with(backlog: &Backlog, folder: &str, file_count: i64) {
@@ -336,7 +345,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 0, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
     #[test]
     fn empty_dir_is_empty() {
@@ -345,7 +354,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 0, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
     #[test]
     fn no_extension_is_ignored() {
@@ -355,7 +364,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 0, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
     #[test]
     fn ignored_extension_is_ignored() {
@@ -368,7 +377,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 0, 0);
+        check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[test]
@@ -379,7 +388,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 0, 0);
+        check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[test]
@@ -391,7 +400,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 2, 0, 0);
+        check_backlog(&backlog, 1, 2, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 2);
     }
     #[test]
@@ -402,7 +411,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 1, 1, 0, 0);
+        check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 
@@ -415,7 +424,7 @@ mod tests {
         let config = build_config(&missing_dir, None, None, None, None);
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        check_backlog(&backlog, 0, 0, 1, 0);
+        check_backlog(&backlog, 0, 0, 1, 0, 0);
     }
 
     enum FailMode {
@@ -454,7 +463,7 @@ mod tests {
             (FailMode::Bad, _) | (_, FailMode::Bad) => 2,
             _ => 0,
         };
-        check_backlog(&backlog, 1, 1, 0, expected_errors);
+        check_backlog(&backlog, 1, 1, 0, expected_errors, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 
@@ -509,21 +518,24 @@ mod tests {
             _ => 0,
         };
         let expected_errors = file_errors + dir_errors;
-        check_backlog(&backlog, 1, 1, 0, expected_errors);
+        check_backlog(&backlog, 1, 1, 0, 0, expected_errors);
         check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
     }
 
     #[test]
     fn ignored_files_are_ignored() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
         let (temp_dir, subdir) = get_subdir();
         // File with good extension.
-        let _nef = add_file(&subdir, "file.nef");
+        let nef = add_file(&subdir, "file.nef");
         // File with ignored extension.
-        let readme = add_file(&subdir, "readme.md");
+        let _readme = add_file(&subdir, "readme.md");
         // File with no extension.
         let _checksums = add_file(&subdir, "SHA1SUMS");
-        let m = std::fs::metadata(readme).expect("Can't stat just created file!");
-        let wrong_mode = if m.mode() == 0o644 { 0o600 } else { 0o644 };
+        std::fs::set_permissions(&nef, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let m = std::fs::metadata(&nef).expect("Can't stat just created file!");
+        let wrong_mode = 0o644;
         let wrong_uid = m.uid() + 1;
         let wrong_gid = m.gid() + 1;
 
@@ -544,7 +556,7 @@ mod tests {
         // same ownership, which is generally correct), and the real file as
         // well, but the two extra files are ignored.
         let expected_errors = 3;
-        check_backlog(&backlog, 1, 1, 0, expected_errors);
+        check_backlog(&backlog, 1, 1, 0, expected_errors, 1);
         check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
     }
 
@@ -579,6 +591,6 @@ mod tests {
         let now = SystemTime::now();
         backlog.scan(&config, now);
         std::fs::set_permissions(&temp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
-        check_backlog(&backlog, 0, 0, 3, 0);
+        check_backlog(&backlog, 0, 0, 3, 0, 0);
     }
 }
