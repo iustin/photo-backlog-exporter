@@ -142,8 +142,8 @@ pub struct Config<'a> {
     pub ignored_exts: &'a [OsString],
     pub owner: Option<u32>,
     pub group: Option<u32>,
-    pub file_mode: Option<u32>,
     pub dir_mode: Option<u32>,
+    pub file_mode: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -284,16 +284,16 @@ mod tests {
         p: &Path,
         owner: Option<u32>,
         group: Option<u32>,
-        file_mode: Option<u32>,
         dir_mode: Option<u32>,
+        file_mode: Option<u32>,
     ) -> Config {
         Config {
             root_path: p,
             ignored_exts: &[],
             owner,
             group,
-            file_mode,
             dir_mode,
+            file_mode,
         }
     }
 
@@ -505,7 +505,7 @@ mod tests {
         std::fs::set_permissions(&temp_dir, dir_perms.clone()).unwrap();
         std::fs::set_permissions(&subdir, dir_perms).unwrap();
         // Now actually do the permissions check.
-        let config = build_config(temp_dir.path(), None, None, file_check, dir_check);
+        let config = build_config(temp_dir.path(), None, None, dir_check, file_check);
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
@@ -543,8 +543,8 @@ mod tests {
             temp_dir.path(),
             Some(wrong_uid),
             Some(wrong_gid),
-            Some(wrong_mode),
             None,
+            Some(wrong_mode),
         );
         let exts = [OsString::from("md")];
         config.ignored_exts = &exts;
