@@ -68,8 +68,8 @@ impl Collector for PhotoBacklogCollector {
             ignored_exts: &self.ignored_exts,
             owner: self.owner,
             group: self.group,
-            dir_mode: None,
-            file_mode: None,
+            dir_mode: self.dir_mode,
+            file_mode: self.file_mode,
         };
 
         let mut backlog = super::Backlog::new(self.age_buckets.iter().copied());
