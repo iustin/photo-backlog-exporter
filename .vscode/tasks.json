@@ -1,32 +1,29 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"type": "cargo",
-			"isBackground": true,
-			"command": "watch",
-			"args": [
-				"-x",
-				"test"
-			],
-			"problemMatcher": {
-				"base": "$rustc-watch",
-				"owner": "cargo test",
-				"source": "tests",
-				"pattern": {
-					"regexp": "at location: (.*):(\\d+)",
-					"file": 1,
-					"line": 2
-				},
-			},
-			"group": {
-				"kind": "test",
-				"isDefault": true
-			},
-			"label": "rust: cargo watch tests",
-			"runOptions": {
-				"runOn": "folderOpen"
-			}
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "cargo",
+      "isBackground": true,
+      "command": "watch",
+      "args": ["-x", "test"],
+      "problemMatcher": {
+        "base": "$rustc-watch",
+        "owner": "cargo test",
+        "source": "tests",
+        "pattern": {
+          "regexp": "at location: (.*):(\\d+)",
+          "file": 1,
+          "line": 2
+        }
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "label": "rust: cargo watch tests",
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    }
+  ]
 }
