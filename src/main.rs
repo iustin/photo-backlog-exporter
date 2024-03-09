@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use gumdrop::Options as _;
-use log::info;
+use log::{debug, info};
 
 use photo_backlog_exporter::*;
 
@@ -36,6 +36,7 @@ async fn main() -> Result<(), String> {
 
     let opts = cli::parse_args()?;
     if opts.help_requested() {
+        debug!("Help requested, showing usage and exiting.");
         eprintln!("{}", cli::CliOptions::usage());
         return Ok(());
     }
