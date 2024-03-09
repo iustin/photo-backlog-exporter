@@ -8,7 +8,7 @@ use std::process::Command;
 use tempfile::tempdir;
 
 #[rstest]
-fn test_oneshot_help(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
+fn test_help(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
     let mut cmd = Command::cargo_bin(cmd_name).unwrap();
     cmd.arg("--help");
 
@@ -19,7 +19,7 @@ fn test_oneshot_help(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &s
 }
 
 #[rstest]
-fn test_oneshot_missing_path(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
+fn test_missing_path(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
     let mut cmd = Command::cargo_bin(cmd_name).unwrap();
 
     cmd.assert()
@@ -28,8 +28,8 @@ fn test_oneshot_missing_path(#[values("oneshot", "photo-backlog-exporter")] cmd_
 }
 
 #[test]
-fn test_oneshot_permissions_check() {
-    // Set test
+fn test_permissions_check() {
+    // Setup the test environment.
     let temp_dir = tempdir().unwrap();
     let mut fname = PathBuf::from(temp_dir.path());
     fname.push("file1.nef");
@@ -42,10 +42,6 @@ fn test_oneshot_permissions_check() {
     cmd.args(["--path", temp_dir.path().to_str().unwrap()])
         .args(["--owner", &format!("{}", m.uid() + 1)])
         .args(["--file-mode", "644"]);
-
-    // Add test cases here
-    // For example:
-    // cmd.arg("--input").arg("input_file.txt");
 
     cmd.assert()
         .success()
