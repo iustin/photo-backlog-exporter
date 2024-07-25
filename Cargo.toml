@@ -11,23 +11,23 @@ strip = true
 lto = true
 
 [dependencies]
-axum = "0.7.4"
+axum = "0.7.5"
 tokio = { version = "1", features = ["full"] }
 gumdrop = "0.8.1"
-prometheus-client = "0.22.0"
-walkdir = "2.4.0"
-log = "0.4.20"
+prometheus-client = "0.22.3"
+walkdir = "2.5.0"
+log = "0.4.22"
 
 [dependencies.env_logger]
-version = "0.11.2"
+version = "0.11.5"
 default-features = false
 features = ["auto-color", "humantime"]
 
 [dev-dependencies]
-tempfile = "3.10.0"
-rstest = "0.18.2"
+tempfile = "3.10.1"
+rstest = "0.21.0"
 speculoos = "0.11.0"
-axum-test = "14.3.0"
+axum-test = "15.3.0"
 testing_logger = "0.1.1"
-assert_cmd = "2.0.14"
-predicates = "3.1.0"
+assert_cmd = "2.0.15"
+predicates = "3.1.2"
