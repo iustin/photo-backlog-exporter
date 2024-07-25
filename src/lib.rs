@@ -18,7 +18,11 @@ pub mod cli;
 pub mod daemon;
 pub mod prometheus;
 
-/// Returns the first directory from a given path.
+/// Returns the first named directory from a given path.
+///
+/// When no named directories are passed (see examples), the behaviour
+/// is to return none.
+///
 /// Example:
 /// ```
 /// # use std::path::{PathBuf, Path};
@@ -26,6 +30,8 @@ pub mod prometheus;
 /// assert_eq!(photo_backlog_exporter::first_dir(Path::new("a")), Some(PathBuf::from(".")));
 /// assert_eq!(photo_backlog_exporter::first_dir(Path::new("a/b")), Some(PathBuf::from("a")));
 /// assert_eq!(photo_backlog_exporter::first_dir(Path::new("/a/b")), Some(PathBuf::from("a")));
+/// assert!(photo_backlog_exporter::first_dir(Path::new(".")).is_none());
+/// assert!(photo_backlog_exporter::first_dir(Path::new("..")).is_none());
 /// ```
 pub fn first_dir(p: &Path) -> Option<PathBuf> {
     // Find first element that is a normal component.
