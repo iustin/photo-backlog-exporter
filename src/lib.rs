@@ -6,7 +6,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use log::{error, info};
+use log::{info, warn};
 use walkdir::WalkDir;
 
 use prometheus_client::encoding::{EncodeLabelValue, LabelValueEncoder};
@@ -27,7 +27,7 @@ pub mod prometheus;
 /// ```
 /// # use std::path::{PathBuf, Path};
 /// assert!(photo_backlog_exporter::first_dir(Path::new("")).is_none());
-/// assert_eq!(photo_backlog_exporter::first_dir(Path::new("a")), Some(PathBuf::from(".")));
+/// assert!(photo_backlog_exporter::first_dir(Path::new("a")).is_none());
 /// assert_eq!(photo_backlog_exporter::first_dir(Path::new("a/b")), Some(PathBuf::from("a")));
 /// assert_eq!(photo_backlog_exporter::first_dir(Path::new("/a/b")), Some(PathBuf::from("a")));
 /// assert!(photo_backlog_exporter::first_dir(Path::new(".")).is_none());
@@ -40,13 +40,15 @@ pub fn first_dir(p: &Path) -> Option<PathBuf> {
         _ => None,
     })?;
     if parent == p {
-        return Some(PathBuf::from(ROOT_FILE_DIR));
+        // No parent for this item, so return None in this case.
+        return None;
     }
     // And convert to valid UTF-8 string via lossy conversion. But we're back in safe land.
     let parent2: &Path = parent.as_ref();
     //let parent3 = Path::from(parent2.to_string_lossy());
     Some(PathBuf::from(parent2))
 }
+
 /// Returns the first directory from a given path, after removing a top prefix.
 /// Example:
 /// ```
@@ -240,11 +242,11 @@ impl Backlog {
             let parent = match relative_top(config.root_path, entry.path()) {
                 Some(x) => x,
                 None => {
-                    error!(
+                    warn!(
                         "Can't determine parent path for {}",
                         entry.path().to_string_lossy()
                     );
-                    continue;
+                    PathBuf::from(ROOT_FILE_DIR)
                 }
             };
 
@@ -342,6 +344,12 @@ mod tests {
         assert_that!(&folder_sizes)
             .named("folder_sizes")
             .contains_entry(folder.to_string(), file_count);
+    }
+
+    #[test]
+    fn first_dir_fails() {
+        assert_that!(crate::first_dir(Path::new("."))).is_none();
+        assert_that!(crate::first_dir(Path::new("a"))).is_none();
     }
 
     #[test]
