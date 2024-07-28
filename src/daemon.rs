@@ -43,12 +43,15 @@ async fn metrics(registry: Arc<Registry>) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
     use ::axum_test::TestServer;
     use speculoos::prelude::*;
 
     use tempfile::tempdir;
+    use tokio::net::TcpListener;
 
-    use crate::cli;
+    use crate::{cli, daemon::run_daemon};
 
     #[tokio::test]
     async fn test_metrics() {
@@ -67,5 +70,27 @@ mod tests {
         assert_that!(raw_text).contains("photo_backlog_counts{kind=\"photos\"} 2");
         assert_that!(raw_text).contains("photo_backlog_ages_count 2");
         assert_that!(raw_text).contains("photo_backlog_processing_time_seconds ");
+    }
+
+    #[tokio::test]
+    async fn test_bind_conflict() {
+        // First, create and initialize app.
+        let temp_dir = tempdir().unwrap();
+        let temp_dir_str = temp_dir.path().to_str().expect("convert tempdir to str");
+        let opts = cli::parse_args_from(&["--path", temp_dir_str]).expect("parse_args");
+        let (_addr, app) = super::build_app(opts);
+
+        // Bind to a random localhost port, and remember the full address,
+        // including port.
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
+        let listener = TcpListener::bind(&socket).await;
+        let ok_listener = assert_that!(listener).is_ok().subject;
+        let local_addr = ok_listener.local_addr();
+        let addr_with_port = assert_that!(local_addr).is_ok().subject;
+
+        // Now try to run a demon against the same address/port combination,
+        // which should fail.
+        let result = run_daemon(*addr_with_port, app).await;
+        assert_that!(result).is_err().contains("Failed to bind to");
     }
 }
