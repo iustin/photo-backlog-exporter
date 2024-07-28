@@ -55,7 +55,7 @@ pub fn first_dir(p: &Path) -> Option<PathBuf> {
 /// # use std::path::{PathBuf, Path};
 /// assert!(photo_backlog_exporter::relative_top(Path::new("/a/b"), Path::new("")).is_none());
 /// assert_eq!(photo_backlog_exporter::relative_top(Path::new("a"), Path::new("a/b/c")), Some(PathBuf::from("b")));
-/// assert_eq!(photo_backlog_exporter::relative_top(Path::new("a/b/"), Path::new("a/b/c")), Some(PathBuf::from(".")));
+/// assert!(photo_backlog_exporter::relative_top(Path::new("a/b/"), Path::new("a/b/c")).is_none());
 /// assert_eq!(photo_backlog_exporter::relative_top(Path::new("/a/b/c"), Path::new("/a/b/c/d/e/f")), Some(PathBuf::from("d")));
 /// ```
 pub fn relative_top(root: &Path, p: &Path) -> Option<PathBuf> {
