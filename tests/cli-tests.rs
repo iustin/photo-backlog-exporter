@@ -115,7 +115,8 @@ fn test_oneshot_systemd_logging() {
     let temp_dir = tempdir().unwrap();
     let mut fname = PathBuf::from(temp_dir.path());
     fname.push("fifo.nef");
-    Command::new("touch").arg(&fname).spawn().unwrap();
+
+    std::fs::write(&fname, b"").expect("Can't create file");
 
     let mut cmd = Command::cargo_bin("oneshot").unwrap();
     cmd.current_dir(temp_dir.path()).args(["--path", "."]);
@@ -128,6 +129,6 @@ fn test_oneshot_systemd_logging() {
             "<4>photo_backlog_exporter: Can\'t determine parent path for ./fifo.nef",
         ))
         .stderr(predicate::str::contains(
-            "Starting up with the following options",
+            "<6>oneshot: Starting up with the following options",
         ));
 }
