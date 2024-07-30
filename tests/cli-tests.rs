@@ -109,3 +109,25 @@ fn test_daemon_systemd_logging() {
         "<7>photo_backlog_exporter: Help requested, showing usage and exiting.",
     ));
 }
+
+#[test]
+fn test_oneshot_systemd_logging() {
+    let temp_dir = tempdir().unwrap();
+    let mut fname = PathBuf::from(temp_dir.path());
+    fname.push("fifo.nef");
+    Command::new("touch").arg(&fname).spawn().unwrap();
+
+    let mut cmd = Command::cargo_bin("oneshot").unwrap();
+    cmd.current_dir(temp_dir.path()).args(["--path", "."]);
+    cmd.env("RUST_LOG_SYSTEMD", "yes");
+    cmd.env("RUST_LOG", "debug");
+
+    cmd.assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "<4>photo_backlog_exporter: Can\'t determine parent path for ./fifo.nef",
+        ))
+        .stderr(predicate::str::contains(
+            "Starting up with the following options",
+        ));
+}
