@@ -1,11 +1,15 @@
 use assert_cmd::cargo::CommandCargoExt;
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
+use result::ResultAssertions;
 use rstest::rstest;
+use speculoos::*;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::PathBuf;
 use std::process::Command;
 use tempfile::tempdir;
+use tokio::net::TcpListener;
 
 #[rstest]
 fn test_help(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
@@ -108,6 +112,24 @@ fn test_daemon_systemd_logging() {
     cmd.assert().success().stderr(predicate::str::contains(
         "<7>photo_backlog_exporter: Help requested, showing usage and exiting.",
     ));
+}
+
+#[tokio::test]
+async fn test_daemon_fail_port() {
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
+    let listener = TcpListener::bind(&socket).await;
+    let ok_listener = assert_that!(listener).is_ok().subject;
+    let local_addr = ok_listener.local_addr();
+    let addr_with_port = assert_that!(local_addr).is_ok().subject;
+
+    let mut cmd = Command::cargo_bin("photo-backlog-exporter").unwrap();
+    cmd.env("RUST_LOG_SYSTEMD", "yes");
+    cmd.env("RUST_LOG", "debug");
+    cmd.args(["--port", &addr_with_port.port().to_string(), "--path", "."]);
+
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("Failed to bind"));
 }
 
 #[test]
