@@ -81,6 +81,22 @@ pub struct CliOptions {
     pub ignored_exts: Vec<OsString>,
 
     #[options(
+        help = "raw or other files that should not be editable",
+        default = "nef,cr2,arw,orf,raf",
+        parse(from_str = "parse_exts"),
+        no_multi
+    )]
+    pub raw_exts: Vec<OsString>,
+
+    #[options(
+        help = "editable files, e.g. jpg, png, tif",
+        default = "jpg,jpeg,heic,heif,mov,mp4,avi,gpr,dng,png,tif,tiff,3gp,pano",
+        parse(from_str = "parse_exts"),
+        no_multi
+    )]
+    pub editable_exts: Vec<OsString>,
+
+    #[options(
         help = "Photos age histogram buckets, in weeks",
         default = "1,2,3,4,5,7,10,13,17,20,26,30,35,52,104",
         parse(try_from_str = "parse_weeks"),
@@ -107,6 +123,13 @@ pub struct CliOptions {
         short = "R"
     )]
     pub raw_file_mode: Option<u32>,
+
+    #[options(
+        help = "Optional numeric mode (permissions) expected for editable files, e.g. 660",
+        parse(try_from_str = "parse_octal_mode"),
+        short = "E"
+    )]
+    pub editable_file_mode: Option<u32>,
 }
 
 pub fn parse_args() -> Result<CliOptions, String> {
@@ -136,11 +159,14 @@ pub fn collector_from_args(opts: CliOptions) -> crate::prometheus::PhotoBacklogC
     crate::prometheus::PhotoBacklogCollector {
         scan_path: opts.path,
         ignored_exts: opts.ignored_exts,
+        raw_exts: opts.raw_exts,
+        editable_exts: opts.editable_exts,
         age_buckets: opts.age_buckets,
         owner: opts.owner,
         group: opts.group,
         dir_mode: opts.dir_mode,
         raw_file_mode: opts.raw_file_mode,
+        editable_file_mode: opts.editable_file_mode,
     }
 }
 

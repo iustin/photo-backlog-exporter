@@ -148,10 +148,13 @@ pub fn check_mode(config: &Config, path: &Path, m: &Metadata) -> bool {
 pub struct Config<'a> {
     pub root_path: &'a Path,
     pub ignored_exts: &'a [OsString],
+    pub raw_exts: &'a [OsString],
+    pub editable_exts: &'a [OsString],
     pub owner: Option<u32>,
     pub group: Option<u32>,
     pub dir_mode: Option<u32>,
     pub raw_file_mode: Option<u32>,
+    pub editable_file_mode: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -298,10 +301,13 @@ mod tests {
         Config {
             root_path: p,
             ignored_exts: &[],
+            raw_exts: &[],
+            editable_exts: &[],
             owner,
             group,
             dir_mode,
             raw_file_mode,
+            editable_file_mode: None,
         }
     }
 

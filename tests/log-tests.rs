@@ -20,9 +20,12 @@ fn test_ownership_logs() {
     let config = Config {
         root_path: temp_dir.path(),
         ignored_exts: &[],
+        raw_exts: &[],
+        editable_exts: &[],
         owner: Some(m.uid() + 1),
         group: None,
         raw_file_mode: Some(0o644),
+        editable_file_mode: None,
         dir_mode: None,
     };
     let mut backlog = Backlog::new([].into_iter());

@@ -21,11 +21,14 @@ pub const PROCESSING_TIME_HELP: &str = "Processing time for scanning the backlog
 pub struct PhotoBacklogCollector {
     pub scan_path: PathBuf,
     pub ignored_exts: Vec<OsString>,
+    pub raw_exts: Vec<OsString>,
+    pub editable_exts: Vec<OsString>,
     pub age_buckets: Vec<f64>,
     pub owner: Option<u32>,
     pub group: Option<u32>,
     pub dir_mode: Option<u32>,
     pub raw_file_mode: Option<u32>,
+    pub editable_file_mode: Option<u32>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -66,10 +69,13 @@ impl Collector for PhotoBacklogCollector {
         let config = super::Config {
             root_path: &self.scan_path,
             ignored_exts: &self.ignored_exts,
+            raw_exts: &self.raw_exts,
+            editable_exts: &self.editable_exts,
             owner: self.owner,
             group: self.group,
             dir_mode: self.dir_mode,
             raw_file_mode: self.raw_file_mode,
+            editable_file_mode: self.editable_file_mode,
         };
 
         let mut backlog = super::Backlog::new(self.age_buckets.iter().copied());
@@ -231,11 +237,14 @@ mod tests {
         let collector = super::PhotoBacklogCollector {
             scan_path: temp_dir.path().to_path_buf(),
             ignored_exts: vec![],
+            raw_exts: vec![],
+            editable_exts: vec![],
             age_buckets: vec![1.0],
             owner: None,
             group: None,
             dir_mode: None,
             raw_file_mode: None,
+            editable_file_mode: None,
         };
         let buffer = super::encode_to_text(collector).unwrap();
 
