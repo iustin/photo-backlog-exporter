@@ -101,7 +101,7 @@ Optional arguments:
   -o, --owner OWNER          Optional owner expected for all files
   -g, --group GROUP          Optional group expected for all files
   -d, --dir-mode DIR-MODE    Optional numeric mode (permissions) expected for directories, e.g 750
-  -f, --file-mode FILE-MODE  Optional numeric mode (permissions) expected for files, e.g. 640
+  -R, --raw-file-mode FILE-MODE  Optional numeric mode (permissions) expected for files, e.g. 640
 
 ```
 

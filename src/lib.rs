@@ -128,9 +128,9 @@ pub fn check_mode(config: &Config, path: &Path, m: &Metadata) -> bool {
         }
     } else if m.is_file() {
         kind = "file";
-        if let Some(file_mode) = config.file_mode {
-            expected = file_mode;
-            good &= file_mode == actual;
+        if let Some(raw_file_mode) = config.raw_file_mode {
+            expected = raw_file_mode;
+            good &= raw_file_mode == actual;
         }
     }
     if !good {
@@ -151,7 +151,7 @@ pub struct Config<'a> {
     pub owner: Option<u32>,
     pub group: Option<u32>,
     pub dir_mode: Option<u32>,
-    pub file_mode: Option<u32>,
+    pub raw_file_mode: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -293,7 +293,7 @@ mod tests {
         owner: Option<u32>,
         group: Option<u32>,
         dir_mode: Option<u32>,
-        file_mode: Option<u32>,
+        raw_file_mode: Option<u32>,
     ) -> Config {
         Config {
             root_path: p,
@@ -301,7 +301,7 @@ mod tests {
             owner,
             group,
             dir_mode,
-            file_mode,
+            raw_file_mode,
         }
     }
 
@@ -486,7 +486,7 @@ mod tests {
         // This is just the file permissions, not the directory. Directory
         // always gets execute on user.
         #[values(0o664, 0o644, 0o660, 0o640, 0o600)] perm: u32,
-        #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] file_mode: FailMode,
+        #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] raw_file_mode: FailMode,
         #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] dir_mode: FailMode,
     ) {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -512,7 +512,7 @@ mod tests {
             }
         }
         let dir_check = generate_check(&dir_mode, perm, true);
-        let file_check = generate_check(&file_mode, perm, false);
+        let file_check = generate_check(&raw_file_mode, perm, false);
         // Set the actual permissions on the file first, then the two directories.
         std::fs::set_permissions(fname, std::fs::Permissions::from_mode(perm)).unwrap();
         let dir_perms = std::fs::Permissions::from_mode(dir_mode_from_file(perm));
@@ -523,7 +523,7 @@ mod tests {
         let mut backlog = Backlog::new([].into_iter());
         let now = SystemTime::now();
         backlog.scan(&config, now);
-        let file_errors = match file_mode {
+        let file_errors = match raw_file_mode {
             FailMode::Bad => 1,
             _ => 0,
         };

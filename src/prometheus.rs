@@ -25,7 +25,7 @@ pub struct PhotoBacklogCollector {
     pub owner: Option<u32>,
     pub group: Option<u32>,
     pub dir_mode: Option<u32>,
-    pub file_mode: Option<u32>,
+    pub raw_file_mode: Option<u32>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -69,7 +69,7 @@ impl Collector for PhotoBacklogCollector {
             owner: self.owner,
             group: self.group,
             dir_mode: self.dir_mode,
-            file_mode: self.file_mode,
+            raw_file_mode: self.raw_file_mode,
         };
 
         let mut backlog = super::Backlog::new(self.age_buckets.iter().copied());
@@ -235,7 +235,7 @@ mod tests {
             owner: None,
             group: None,
             dir_mode: None,
-            file_mode: None,
+            raw_file_mode: None,
         };
         let buffer = super::encode_to_text(collector).unwrap();
 

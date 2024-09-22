@@ -102,10 +102,11 @@ pub struct CliOptions {
     pub dir_mode: Option<u32>,
 
     #[options(
-        help = "Optional numeric mode (permissions) expected for files, e.g. 640",
-        parse(try_from_str = "parse_octal_mode")
+        help = "Optional numeric mode (permissions) expected for non-editable files, e.g. 640",
+        parse(try_from_str = "parse_octal_mode"),
+        short = "R"
     )]
-    pub file_mode: Option<u32>,
+    pub raw_file_mode: Option<u32>,
 }
 
 pub fn parse_args() -> Result<CliOptions, String> {
@@ -139,7 +140,7 @@ pub fn collector_from_args(opts: CliOptions) -> crate::prometheus::PhotoBacklogC
         owner: opts.owner,
         group: opts.group,
         dir_mode: opts.dir_mode,
-        file_mode: opts.file_mode,
+        raw_file_mode: opts.raw_file_mode,
     }
 }
 
@@ -208,7 +209,7 @@ mod tests {
         ]);
         let opts = opts.expect("parse args is successful");
         assert_that!(&opts.dir_mode).is_equal_to(Some(0o750));
-        assert_that!(&opts.file_mode).is_equal_to(None);
+        assert_that!(&opts.raw_file_mode).is_equal_to(None);
         let expected_exts = vec![OsString::from("xmp"), OsString::from("info")];
         assert_that!(opts.ignored_exts).is_equal_to(expected_exts);
     }

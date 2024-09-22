@@ -22,7 +22,7 @@ fn test_ownership_logs() {
         ignored_exts: &[],
         owner: Some(m.uid() + 1),
         group: None,
-        file_mode: Some(0o644),
+        raw_file_mode: Some(0o644),
         dir_mode: None,
     };
     let mut backlog = Backlog::new([].into_iter());
