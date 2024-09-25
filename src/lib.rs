@@ -341,7 +341,7 @@ mod tests {
         TestData {
             temp_dir: tempdir().unwrap(),
             now: SystemTime::now(),
-            ignored_exts: vec![],
+            ignored_exts: vec![OsString::from("xmp")],
             raw_exts: vec![],
             editable_exts: vec![],
         }
@@ -413,9 +413,7 @@ mod tests {
         let subdir = test_data.get_subdir();
         add_file(&subdir, "file.nef");
         add_file(&subdir, "file.xmp");
-        let mut config = test_data.build_config(None, None, None, None);
-        let exts = [OsString::from("xmp")];
-        config.ignored_exts = &exts;
+        let config = test_data.build_config(None, None, None, None);
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
@@ -608,9 +606,7 @@ mod tests {
             path: temp_dir.path(),
         };
         std::fs::set_permissions(temp_dir, std::fs::Permissions::from_mode(0o600)).unwrap();
-        let mut config = test_data.build_config(None, None, None, None);
-        let exts = [OsString::from("xmp")];
-        config.ignored_exts = &exts;
+        let config = test_data.build_config(None, None, None, None);
         backlog.scan(&config, test_data.now);
         std::fs::set_permissions(temp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
         check_backlog(&backlog, 0, 0, 3, 0, 0);
