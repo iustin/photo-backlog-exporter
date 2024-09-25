@@ -295,6 +295,9 @@ mod tests {
     pub struct TestData {
         pub temp_dir: TempDir,
         pub now: SystemTime,
+        pub ignored_exts: Vec<OsString>,
+        pub raw_exts: Vec<OsString>,
+        pub editable_exts: Vec<OsString>,
     }
 
     impl TestData {
@@ -313,9 +316,9 @@ mod tests {
         ) -> Config {
             Config {
                 root_path: self.temp_dir.path(),
-                ignored_exts: &[],
-                raw_exts: &[],
-                editable_exts: &[],
+                ignored_exts: &self.ignored_exts,
+                raw_exts: &self.raw_exts,
+                editable_exts: &self.editable_exts,
                 owner,
                 group,
                 dir_mode,
@@ -338,6 +341,9 @@ mod tests {
         TestData {
             temp_dir: tempdir().unwrap(),
             now: SystemTime::now(),
+            ignored_exts: vec![],
+            raw_exts: vec![],
+            editable_exts: vec![],
         }
     }
 
