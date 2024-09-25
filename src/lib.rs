@@ -559,7 +559,7 @@ mod tests {
         // File with good extension.
         let nef = add_file(&subdir, "file.nef");
         // File with ignored extension.
-        let _readme = add_file(&subdir, "readme.md");
+        let _xmp = add_file(&subdir, "file.xmp");
         // File with no extension.
         let _checksums = add_file(&subdir, "SHA1SUMS");
         std::fs::set_permissions(&nef, std::fs::Permissions::from_mode(0o600)).unwrap();
@@ -568,10 +568,8 @@ mod tests {
         let wrong_uid = m.uid() + 1;
         let wrong_gid = m.gid() + 1;
 
-        let mut config =
+        let config =
             test_data.build_config(Some(wrong_uid), Some(wrong_gid), None, Some(wrong_mode));
-        let exts = [OsString::from("md")];
-        config.ignored_exts = &exts;
         backlog.scan(&config, test_data.now);
         // The top-level directory and sub-directory have wrong ownership (the
         // assumption here is that both temp directories and temp files have the
