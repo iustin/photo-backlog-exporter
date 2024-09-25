@@ -292,6 +292,10 @@ mod tests {
 
     const SUBDIR: &str = "dir1";
 
+    pub struct TestData {
+        pub temp_dir: TempDir,
+    }
+
     #[fixture]
     fn backlog() -> Backlog {
         Backlog::new([].into_iter())
@@ -300,6 +304,13 @@ mod tests {
     #[fixture]
     fn now() -> SystemTime {
         SystemTime::now()
+    }
+
+    #[fixture]
+    fn test_data() -> TestData {
+        TestData {
+            temp_dir: tempdir().unwrap(),
+        }
     }
 
     fn build_config(
@@ -370,9 +381,8 @@ mod tests {
     }
 
     #[rstest]
-    fn empty_dir(mut backlog: Backlog, now: SystemTime) {
-        let temp_dir = tempdir().unwrap();
-        let config = build_config(temp_dir.path(), None, None, None, None);
+    fn empty_dir(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        let config = build_config(test_data.temp_dir.path(), None, None, None, None);
         backlog.scan(&config, now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
@@ -423,10 +433,9 @@ mod tests {
         check_has_dir_with(&backlog, SUBDIR, 2);
     }
     #[rstest]
-    fn file_in_root_dir(mut backlog: Backlog, now: SystemTime) {
-        let temp_dir = tempdir().unwrap();
-        add_file(temp_dir.path(), "file.nef");
-        let config = build_config(temp_dir.path(), None, None, None, None);
+    fn file_in_root_dir(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        add_file(test_data.temp_dir.path(), "file.nef");
+        let config = build_config(test_data.temp_dir.path(), None, None, None, None);
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
@@ -450,6 +459,7 @@ mod tests {
 
     #[rstest]
     fn test_ownership(
+        test_data: TestData,
         mut backlog: Backlog,
         now: SystemTime,
         #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] user_mode: FailMode,
@@ -457,8 +467,7 @@ mod tests {
     ) {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let temp_dir = tempdir().unwrap();
-        let fname = add_file(temp_dir.path(), "file.nef");
+        let fname = add_file(test_data.temp_dir.path(), "file.nef");
         let m = std::fs::metadata(fname).expect("Can't stat just created file!");
         fn generate_check(mode: &FailMode, id: u32) -> Option<u32> {
             match mode {
@@ -470,7 +479,13 @@ mod tests {
         let user_check = generate_check(&user_mode, m.uid());
         let group_check = generate_check(&group_mode, m.gid());
         // No permissions check.
-        let config = build_config(temp_dir.path(), user_check, group_check, None, None);
+        let config = build_config(
+            test_data.temp_dir.path(),
+            user_check,
+            group_check,
+            None,
+            None,
+        );
         backlog.scan(&config, now);
         let expected_errors = match (user_mode, group_mode) {
             // The expected errors is two, because both the top level directory
@@ -574,8 +589,8 @@ mod tests {
     }
 
     #[rstest]
-    fn test_scan_errors(mut backlog: Backlog, now: SystemTime) {
-        let temp_dir = tempdir().unwrap();
+    fn test_scan_errors(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        let temp_dir = test_data.temp_dir;
         let _f1 = add_file(temp_dir.path(), "file1.nef");
         // File f2 is ignored (for statistics), but current semantics is that
         // all items should be scanable.
