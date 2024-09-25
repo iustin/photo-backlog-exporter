@@ -274,6 +274,7 @@ impl Backlog {
 
 #[cfg(test)]
 mod tests {
+    use rstest::fixture;
     use rstest::rstest;
     use std::collections::HashMap;
     use std::ffi::OsString;
@@ -290,6 +291,16 @@ mod tests {
     use crate::{Config, ErrorType};
 
     const SUBDIR: &str = "dir1";
+
+    #[fixture]
+    fn backlog() -> Backlog {
+        Backlog::new([].into_iter())
+    }
+
+    #[fixture]
+    fn now() -> SystemTime {
+        SystemTime::now()
+    }
 
     fn build_config(
         p: &Path,
@@ -358,91 +369,75 @@ mod tests {
         assert_that!(crate::first_dir(Path::new("a"))).is_none();
     }
 
-    #[test]
-    fn empty_dir() {
+    #[rstest]
+    fn empty_dir(mut backlog: Backlog, now: SystemTime) {
         let temp_dir = tempdir().unwrap();
         let config = build_config(temp_dir.path(), None, None, None, None);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
-    #[test]
-    fn empty_dir_is_empty() {
+    #[rstest]
+    fn empty_dir_is_empty(mut backlog: Backlog, now: SystemTime) {
         let (temp_dir, _) = get_subdir();
         let config = build_config(temp_dir.path(), None, None, None, None);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
-    #[test]
-    fn no_extension_is_ignored() {
+    #[rstest]
+    fn no_extension_is_ignored(mut backlog: Backlog, now: SystemTime) {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "readme");
         let config = build_config(temp_dir.path(), None, None, None, None);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
-    #[test]
-    fn ignored_extension_is_ignored() {
+    #[rstest]
+    fn ignored_extension_is_ignored(mut backlog: Backlog, now: SystemTime) {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "file.nef");
         add_file(&subdir, "file.xmp");
         let mut config = build_config(temp_dir.path(), None, None, None, None);
         let exts = [OsString::from("xmp")];
         config.ignored_exts = &exts;
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
-    #[test]
-    fn one_dir_one_file() {
+    #[rstest]
+    fn one_dir_one_file(mut backlog: Backlog, now: SystemTime) {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "file.nef");
         let config = build_config(temp_dir.path(), None, None, None, None);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
-    #[test]
-    fn one_dir_two_files() {
+    #[rstest]
+    fn one_dir_two_files(mut backlog: Backlog, now: SystemTime) {
         let (temp_dir, subdir) = get_subdir();
         add_file(&subdir, "dsc001.nef");
         add_file(&subdir, "dsc002.jpg");
         let config = build_config(temp_dir.path(), None, None, None, None);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 2, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 2);
     }
-    #[test]
-    fn file_in_root_dir() {
+    #[rstest]
+    fn file_in_root_dir(mut backlog: Backlog, now: SystemTime) {
         let temp_dir = tempdir().unwrap();
         add_file(temp_dir.path(), "file.nef");
         let config = build_config(temp_dir.path(), None, None, None, None);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 
-    #[test]
-    fn no_such_dir() {
+    #[rstest]
+    fn no_such_dir(mut backlog: Backlog, now: SystemTime) {
         let (temp_dir, _subdir) = get_subdir();
         let mut missing_dir = temp_dir.path().to_path_buf();
         missing_dir.push("no-such_dir");
-        let mut backlog = Backlog::new([].into_iter());
         let config = build_config(&missing_dir, None, None, None, None);
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         check_backlog(&backlog, 0, 0, 1, 0, 0);
     }
@@ -455,6 +450,8 @@ mod tests {
 
     #[rstest]
     fn test_ownership(
+        mut backlog: Backlog,
+        now: SystemTime,
         #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] user_mode: FailMode,
         #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] group_mode: FailMode,
     ) {
@@ -474,8 +471,6 @@ mod tests {
         let group_check = generate_check(&group_mode, m.gid());
         // No permissions check.
         let config = build_config(temp_dir.path(), user_check, group_check, None, None);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         let expected_errors = match (user_mode, group_mode) {
             // The expected errors is two, because both the top level directory
@@ -489,6 +484,8 @@ mod tests {
 
     #[rstest]
     fn test_permissions(
+        mut backlog: Backlog,
+        now: SystemTime,
         // This is just the file permissions, not the directory. Directory
         // always gets execute on user.
         #[values(0o664, 0o644, 0o660, 0o640, 0o600)] perm: u32,
@@ -526,8 +523,6 @@ mod tests {
         std::fs::set_permissions(&subdir, dir_perms).unwrap();
         // Now actually do the permissions check.
         let config = build_config(temp_dir.path(), None, None, dir_check, file_check);
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         let file_errors = match raw_file_mode {
             FailMode::Bad => 1,
@@ -542,8 +537,8 @@ mod tests {
         check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
     }
 
-    #[test]
-    fn ignored_files_are_ignored() {
+    #[rstest]
+    fn ignored_files_are_ignored(mut backlog: Backlog, now: SystemTime) {
         let _ = env_logger::builder().is_test(true).try_init();
 
         let (temp_dir, subdir) = get_subdir();
@@ -568,8 +563,6 @@ mod tests {
         );
         let exts = [OsString::from("md")];
         config.ignored_exts = &exts;
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         // The top-level directory and sub-directory have wrong ownership (the
         // assumption here is that both temp directories and temp files have the
@@ -580,8 +573,8 @@ mod tests {
         check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
     }
 
-    #[test]
-    fn test_scan_errors() {
+    #[rstest]
+    fn test_scan_errors(mut backlog: Backlog, now: SystemTime) {
         let temp_dir = tempdir().unwrap();
         let _f1 = add_file(temp_dir.path(), "file1.nef");
         // File f2 is ignored (for statistics), but current semantics is that
@@ -607,8 +600,6 @@ mod tests {
         let mut config = build_config(temp_dir.path(), None, None, None, None);
         let exts = [OsString::from("xmp")];
         config.ignored_exts = &exts;
-        let mut backlog = Backlog::new([].into_iter());
-        let now = SystemTime::now();
         backlog.scan(&config, now);
         std::fs::set_permissions(&temp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
         check_backlog(&backlog, 0, 0, 3, 0, 0);
