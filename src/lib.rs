@@ -296,6 +296,14 @@ mod tests {
         pub temp_dir: TempDir,
     }
 
+    impl TestData {
+        pub fn get_subdir(&self) -> PathBuf {
+            let subdir = self.temp_dir.path().join(SUBDIR);
+            std::fs::create_dir(&subdir).expect("Can't create subdir");
+            subdir
+        }
+    }
+
     #[fixture]
     fn backlog() -> Backlog {
         Backlog::new([].into_iter())
@@ -331,13 +339,6 @@ mod tests {
             raw_file_mode,
             editable_file_mode: None,
         }
-    }
-
-    fn get_subdir() -> (TempDir, PathBuf) {
-        let temp_dir = tempdir().unwrap();
-        let subdir = temp_dir.path().join(SUBDIR);
-        std::fs::create_dir(&subdir).expect("Can't create subdir");
-        (temp_dir, subdir)
     }
 
     fn add_file(d: &Path, name: &str) -> PathBuf {
@@ -387,26 +388,26 @@ mod tests {
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
     #[rstest]
-    fn empty_dir_is_empty(mut backlog: Backlog, now: SystemTime) {
-        let (temp_dir, _) = get_subdir();
-        let config = build_config(temp_dir.path(), None, None, None, None);
+    fn empty_dir_is_empty(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        let _ = test_data.get_subdir();
+        let config = build_config(test_data.temp_dir.path(), None, None, None, None);
         backlog.scan(&config, now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
     #[rstest]
-    fn no_extension_is_ignored(mut backlog: Backlog, now: SystemTime) {
-        let (temp_dir, subdir) = get_subdir();
+    fn no_extension_is_ignored(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        let subdir = test_data.get_subdir();
         add_file(&subdir, "readme");
-        let config = build_config(temp_dir.path(), None, None, None, None);
+        let config = build_config(test_data.temp_dir.path(), None, None, None, None);
         backlog.scan(&config, now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
     #[rstest]
-    fn ignored_extension_is_ignored(mut backlog: Backlog, now: SystemTime) {
-        let (temp_dir, subdir) = get_subdir();
+    fn ignored_extension_is_ignored(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        let subdir = test_data.get_subdir();
         add_file(&subdir, "file.nef");
         add_file(&subdir, "file.xmp");
-        let mut config = build_config(temp_dir.path(), None, None, None, None);
+        let mut config = build_config(test_data.temp_dir.path(), None, None, None, None);
         let exts = [OsString::from("xmp")];
         config.ignored_exts = &exts;
         backlog.scan(&config, now);
@@ -414,20 +415,20 @@ mod tests {
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[rstest]
-    fn one_dir_one_file(mut backlog: Backlog, now: SystemTime) {
-        let (temp_dir, subdir) = get_subdir();
+    fn one_dir_one_file(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        let subdir = test_data.get_subdir();
         add_file(&subdir, "file.nef");
-        let config = build_config(temp_dir.path(), None, None, None, None);
+        let config = build_config(test_data.temp_dir.path(), None, None, None, None);
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[rstest]
-    fn one_dir_two_files(mut backlog: Backlog, now: SystemTime) {
-        let (temp_dir, subdir) = get_subdir();
+    fn one_dir_two_files(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        let subdir = test_data.get_subdir();
         add_file(&subdir, "dsc001.nef");
         add_file(&subdir, "dsc002.jpg");
-        let config = build_config(temp_dir.path(), None, None, None, None);
+        let config = build_config(test_data.temp_dir.path(), None, None, None, None);
         backlog.scan(&config, now);
         check_backlog(&backlog, 1, 2, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 2);
@@ -442,9 +443,9 @@ mod tests {
     }
 
     #[rstest]
-    fn no_such_dir(mut backlog: Backlog, now: SystemTime) {
-        let (temp_dir, _subdir) = get_subdir();
-        let mut missing_dir = temp_dir.path().to_path_buf();
+    fn no_such_dir(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
+        let _subdir = test_data.get_subdir();
+        let mut missing_dir = test_data.temp_dir.path().to_path_buf();
         missing_dir.push("no-such_dir");
         let config = build_config(&missing_dir, None, None, None, None);
         backlog.scan(&config, now);
@@ -499,6 +500,7 @@ mod tests {
 
     #[rstest]
     fn test_permissions(
+        test_data: TestData,
         mut backlog: Backlog,
         now: SystemTime,
         // This is just the file permissions, not the directory. Directory
@@ -509,7 +511,7 @@ mod tests {
     ) {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let (temp_dir, subdir) = get_subdir();
+        let subdir = test_data.get_subdir();
         let fname = add_file(&subdir, "file.nef");
         fn dir_mode_from_file(perm: u32) -> u32 {
             perm | 0o100
@@ -534,10 +536,10 @@ mod tests {
         // Set the actual permissions on the file first, then the two directories.
         std::fs::set_permissions(fname, std::fs::Permissions::from_mode(perm)).unwrap();
         let dir_perms = std::fs::Permissions::from_mode(dir_mode_from_file(perm));
-        std::fs::set_permissions(&temp_dir, dir_perms.clone()).unwrap();
+        std::fs::set_permissions(&test_data.temp_dir, dir_perms.clone()).unwrap();
         std::fs::set_permissions(&subdir, dir_perms).unwrap();
         // Now actually do the permissions check.
-        let config = build_config(temp_dir.path(), None, None, dir_check, file_check);
+        let config = build_config(test_data.temp_dir.path(), None, None, dir_check, file_check);
         backlog.scan(&config, now);
         let file_errors = match raw_file_mode {
             FailMode::Bad => 1,
@@ -553,10 +555,10 @@ mod tests {
     }
 
     #[rstest]
-    fn ignored_files_are_ignored(mut backlog: Backlog, now: SystemTime) {
+    fn ignored_files_are_ignored(test_data: TestData, mut backlog: Backlog, now: SystemTime) {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let (temp_dir, subdir) = get_subdir();
+        let subdir = test_data.get_subdir();
         // File with good extension.
         let nef = add_file(&subdir, "file.nef");
         // File with ignored extension.
@@ -570,7 +572,7 @@ mod tests {
         let wrong_gid = m.gid() + 1;
 
         let mut config = build_config(
-            temp_dir.path(),
+            test_data.temp_dir.path(),
             Some(wrong_uid),
             Some(wrong_gid),
             None,
