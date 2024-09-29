@@ -96,22 +96,39 @@ Optional arguments:
   -P, --path PATH            path to root of incoming photo directory
   -i, --ignored-exts IGNORED-EXTS
                              ignored file extension (default: xmp,lua,DS_Store)
+  -r, --raw-exts RAW-EXTS  raw or other files that should not be editable (default: nef,cr2,arw,orf,raf)
+  -e, --editable-exts EDITABLE-EXTS
+                           editable files, e.g. jpg, png, tif (default: jpg,jpeg,heic,heif,mov,mp4,avi,gpr,dng,png,tif,tiff,3gp,pano)
   -a, --age-buckets AGE-BUCKETS
                              Photos age histogram buckets, in weeks (default: 1,2,3,4,5,7,10,13,17,20,26,30,35,52,104)
   -o, --owner OWNER          Optional owner expected for all files
   -g, --group GROUP          Optional group expected for all files
   -d, --dir-mode DIR-MODE    Optional numeric mode (permissions) expected for directories, e.g 750
-  -R, --raw-file-mode FILE-MODE  Optional numeric mode (permissions) expected for files, e.g. 640
-
+  -R, --raw-file-mode RAW-FILE-MODE
+                           Optional numeric mode (permissions) expected for non-editable files, e.g. 640
+  -E, --editable-file-mode EDITABLE-FILE-MODE
+                           Optional numeric mode (permissions) expected for editable files, e.g. 660
 ```
 
 I hope they are self-explanatory. Well, maybe the `--ignored-exts`:
 these are extensions for which files should be completely
 ignored. For example, the `xmp` extension should normally be ignored
-because Lightrom can store metadata (if so configured) outside of the
+because Lightroom can store metadata (if so configured) outside of the
 catalog and in `xmp` files for each proprietary RAW format. (Yes, this
 also means that the mtime-counting doesn't work well for `jpeg` files,
 for example. Sorry - if you have ideas, file a bug!)
+
+The file permissions are split in two categories:
+
+- raw files, which in general should not be edited, at least not for proprietary
+  RAW files, like Nikon's NEF and Canon's CRW, as opposed to DNG which is
+  editable;
+- and editable files, which is everything else - DNG, TIFF, JPEG, etc.
+
+The difference arises that ideally, the processing tool shouldn't be given write
+permissions to raw files. If you do use Lightroom to store edits into RAW files
+(in my opinion, not a good idea), then don't pass `-R` and override the `-r`
+options.
 
 Note that the binary uses the `env_logger` rust package, and thus
 logging can be configured via the usual `RUST_LOG=info` and similar

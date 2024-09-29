@@ -76,6 +76,15 @@ pub enum ErrorType {
     Permissions,
 }
 
+#[derive(PartialEq, Eq)]
+pub enum FileKind {
+    Raw,
+    Editable,
+    Ignored,
+    None,
+    Unknown,
+}
+
 impl EncodeLabelValue for ErrorType {
     fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
         let s = match self {
@@ -115,7 +124,7 @@ pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -
     good
 }
 
-pub fn check_mode(config: &Config, path: &Path, m: &Metadata) -> bool {
+pub fn check_mode(config: &Config, path: &Path, m: &Metadata, k: FileKind) -> bool {
     let mut good = true;
     let mut kind = "(unknown)";
     let mut expected = 0o0;
@@ -128,18 +137,24 @@ pub fn check_mode(config: &Config, path: &Path, m: &Metadata) -> bool {
         }
     } else if m.is_file() {
         kind = "file";
-        if let Some(raw_file_mode) = config.raw_file_mode {
-            expected = raw_file_mode;
-            good &= raw_file_mode == actual;
+        let expected_mode = match k {
+            FileKind::Raw => config.raw_file_mode,
+            FileKind::Editable => config.editable_file_mode,
+            _ => None,
+        };
+        if let Some(file_mode) = expected_mode {
+            expected = file_mode;
+            good &= file_mode == actual;
         }
     }
     if !good {
         info!(
-            "{} '{}' has wrong mode {:o}, expected {:o}",
+            "{} '{}' has wrong mode {:o}, expected {:o} (kind: {:?})",
             kind,
             path.display(),
             actual,
             expected,
+            kind,
         );
     }
     good
@@ -212,7 +227,12 @@ impl Backlog {
                 if !check_ownership(config, path, &metadata, "Directory") {
                     self.record_error(ErrorType::Ownership);
                 }
-                if !check_mode(config, path, &metadata) {
+                if !check_mode(
+                    config,
+                    path,
+                    &metadata,
+                    FileKind::None, /* misuse, but… */
+                ) {
                     self.record_error(ErrorType::Permissions);
                 }
                 // We don't track directories by themselves,
@@ -223,13 +243,24 @@ impl Backlog {
                 // We don't care about other file types.
                 continue;
             }
-            match entry.path().extension() {
-                None => continue,
+            let kind = match entry.path().extension() {
+                None => FileKind::None,
                 Some(ext) => {
                     if config.ignored_exts.iter().any(|c| c == ext) {
-                        continue;
+                        FileKind::Ignored
+                    } else if config.raw_exts.iter().any(|c| c == ext) {
+                        FileKind::Raw
+                    } else if config.editable_exts.iter().any(|c| c == ext) {
+                        FileKind::Editable
+                    } else {
+                        FileKind::Unknown
                     }
                 }
+            };
+
+            if kind == FileKind::Ignored || kind == FileKind::None {
+                // We don't care about ignored files, or files without extension.
+                continue;
             }
 
             // Here it's not an ignored entry, so let's process it.
@@ -237,7 +268,7 @@ impl Backlog {
             if !check_ownership(config, path, &metadata, "File") {
                 self.record_error(ErrorType::Ownership);
             }
-            if !check_mode(config, path, &metadata) {
+            if !check_mode(config, path, &metadata, kind) {
                 self.record_error(ErrorType::Permissions);
             }
 
@@ -292,6 +323,7 @@ mod tests {
 
     const SUBDIR: &str = "dir1";
 
+    #[derive(Debug)]
     pub struct TestData {
         pub temp_dir: TempDir,
         pub now: SystemTime,
@@ -313,6 +345,7 @@ mod tests {
             group: Option<u32>,
             dir_mode: Option<u32>,
             raw_file_mode: Option<u32>,
+            editable_file_mode: Option<u32>,
         ) -> Config {
             Config {
                 root_path: self.temp_dir.path(),
@@ -323,7 +356,7 @@ mod tests {
                 group,
                 dir_mode,
                 raw_file_mode,
-                editable_file_mode: None,
+                editable_file_mode,
             }
         }
     }
@@ -342,8 +375,8 @@ mod tests {
             temp_dir: tempdir().unwrap(),
             now: SystemTime::now(),
             ignored_exts: vec![OsString::from("xmp")],
-            raw_exts: vec![],
-            editable_exts: vec![],
+            raw_exts: vec![OsString::from("nef")],
+            editable_exts: vec![OsString::from("jpg")],
         }
     }
 
@@ -389,14 +422,14 @@ mod tests {
 
     #[rstest]
     fn empty_dir(test_data: TestData, mut backlog: Backlog) {
-        let config = test_data.build_config(None, None, None, None);
+        let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
     #[rstest]
     fn empty_dir_is_empty(test_data: TestData, mut backlog: Backlog) {
         let _ = test_data.get_subdir();
-        let config = test_data.build_config(None, None, None, None);
+        let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
@@ -404,7 +437,7 @@ mod tests {
     fn no_extension_is_ignored(test_data: TestData, mut backlog: Backlog) {
         let subdir = test_data.get_subdir();
         add_file(&subdir, "readme");
-        let config = test_data.build_config(None, None, None, None);
+        let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 0, 0, 0, 0, 0);
     }
@@ -413,7 +446,7 @@ mod tests {
         let subdir = test_data.get_subdir();
         add_file(&subdir, "file.nef");
         add_file(&subdir, "file.xmp");
-        let config = test_data.build_config(None, None, None, None);
+        let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
@@ -422,7 +455,7 @@ mod tests {
     fn one_dir_one_file(test_data: TestData, mut backlog: Backlog) {
         let subdir = test_data.get_subdir();
         add_file(&subdir, "file.nef");
-        let config = test_data.build_config(None, None, None, None);
+        let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
@@ -432,7 +465,7 @@ mod tests {
         let subdir = test_data.get_subdir();
         add_file(&subdir, "dsc001.nef");
         add_file(&subdir, "dsc002.jpg");
-        let config = test_data.build_config(None, None, None, None);
+        let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 1, 2, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 2);
@@ -440,7 +473,7 @@ mod tests {
     #[rstest]
     fn file_in_root_dir(test_data: TestData, mut backlog: Backlog) {
         add_file(test_data.temp_dir.path(), "file.nef");
-        let config = test_data.build_config(None, None, None, None);
+        let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 1, 1, 0, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
@@ -451,7 +484,7 @@ mod tests {
         let _subdir = test_data.get_subdir();
         let mut missing_dir = test_data.temp_dir.path().to_path_buf();
         missing_dir.push("no-such_dir");
-        let mut config = test_data.build_config(None, None, None, None);
+        let mut config = test_data.build_config(None, None, None, None, None);
         config.root_path = &missing_dir;
         backlog.scan(&config, test_data.now);
         check_backlog(&backlog, 0, 0, 1, 0, 0);
@@ -461,6 +494,13 @@ mod tests {
         NoCheck,
         Good,
         Bad,
+    }
+
+    #[derive(PartialEq)]
+    enum TestWhat {
+        Directory,
+        RawFile,
+        EditableFile,
     }
 
     #[rstest]
@@ -484,7 +524,7 @@ mod tests {
         let user_check = generate_check(&user_mode, m.uid());
         let group_check = generate_check(&group_mode, m.gid());
         // No permissions check.
-        let config = test_data.build_config(user_check, group_check, None, None);
+        let config = test_data.build_config(user_check, group_check, None, None, None);
         backlog.scan(&config, test_data.now);
         let expected_errors = match (user_mode, group_mode) {
             // The expected errors is two, because both the top level directory
@@ -503,13 +543,14 @@ mod tests {
         // This is just the file permissions, not the directory. Directory
         // always gets execute on user.
         #[values(0o664, 0o644, 0o660, 0o640, 0o600)] perm: u32,
-        #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] raw_file_mode: FailMode,
-        #[values(FailMode::NoCheck, FailMode::Good, FailMode::Bad)] dir_mode: FailMode,
+        #[values(TestWhat::Directory, TestWhat::RawFile, TestWhat::EditableFile)] what: TestWhat,
+        #[values(true, false)] check_fail: bool,
     ) {
         let _ = env_logger::builder().is_test(true).try_init();
 
         let subdir = test_data.get_subdir();
-        let fname = add_file(&subdir, "file.nef");
+        let raw_file = add_file(&subdir, "file.nef");
+        let jpg_file = add_file(&subdir, "file.jpg");
         fn dir_mode_from_file(perm: u32) -> u32 {
             perm | 0o100
         }
@@ -520,35 +561,41 @@ mod tests {
                 perm
             }
         }
-        fn generate_check(mode: &FailMode, perm: u32, is_dir: bool) -> Option<u32> {
+        fn generate_check(
+            subject: TestWhat,
+            what: &TestWhat,
+            check_fail: bool,
+            perm: u32,
+            is_dir: bool,
+        ) -> Option<u32> {
             let bad_perm = if perm == 0o600 { 0o640 } else { 0o600 };
-            match mode {
-                FailMode::NoCheck => None,
-                FailMode::Good => Some(maybe_dir_mode(is_dir, perm)),
-                FailMode::Bad => Some(maybe_dir_mode(is_dir, bad_perm)),
+            if subject != *what {
+                return None;
+            }
+            match check_fail {
+                false => Some(maybe_dir_mode(is_dir, perm)),
+                true => Some(maybe_dir_mode(is_dir, bad_perm)),
             }
         }
-        let dir_check = generate_check(&dir_mode, perm, true);
-        let file_check = generate_check(&raw_file_mode, perm, false);
+        let dir_check = generate_check(TestWhat::Directory, &what, check_fail, perm, true);
+        let raw_check = generate_check(TestWhat::RawFile, &what, check_fail, perm, false);
+        let jpg_check = generate_check(TestWhat::EditableFile, &what, check_fail, perm, false);
         // Set the actual permissions on the file first, then the two directories.
-        std::fs::set_permissions(fname, std::fs::Permissions::from_mode(perm)).unwrap();
+        std::fs::set_permissions(raw_file, std::fs::Permissions::from_mode(perm)).unwrap();
+        std::fs::set_permissions(jpg_file, std::fs::Permissions::from_mode(perm)).unwrap();
         let dir_perms = std::fs::Permissions::from_mode(dir_mode_from_file(perm));
         std::fs::set_permissions(&test_data.temp_dir, dir_perms.clone()).unwrap();
         std::fs::set_permissions(&subdir, dir_perms).unwrap();
         // Now actually do the permissions check.
-        let config = test_data.build_config(None, None, dir_check, file_check);
+        let config = test_data.build_config(None, None, dir_check, raw_check, jpg_check);
         backlog.scan(&config, test_data.now);
-        let file_errors = match raw_file_mode {
-            FailMode::Bad => 1,
+        let expected_errors = match (what, check_fail) {
+            (TestWhat::Directory, true) => 2,
+            (_, true) => 1,
             _ => 0,
         };
-        let dir_errors = match dir_mode {
-            FailMode::Bad => 2,
-            _ => 0,
-        };
-        let expected_errors = file_errors + dir_errors;
-        check_backlog(&backlog, 1, 1, 0, 0, expected_errors);
-        check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
+        check_backlog(&backlog, 1, 2, 0, 0, expected_errors);
+        check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 2);
     }
 
     #[rstest]
@@ -568,8 +615,13 @@ mod tests {
         let wrong_uid = m.uid() + 1;
         let wrong_gid = m.gid() + 1;
 
-        let config =
-            test_data.build_config(Some(wrong_uid), Some(wrong_gid), None, Some(wrong_mode));
+        let config = test_data.build_config(
+            Some(wrong_uid),
+            Some(wrong_gid),
+            None,
+            Some(wrong_mode),
+            None,
+        );
         backlog.scan(&config, test_data.now);
         // The top-level directory and sub-directory have wrong ownership (the
         // assumption here is that both temp directories and temp files have the
@@ -604,7 +656,7 @@ mod tests {
             path: temp_dir.path(),
         };
         std::fs::set_permissions(temp_dir, std::fs::Permissions::from_mode(0o600)).unwrap();
-        let config = test_data.build_config(None, None, None, None);
+        let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         std::fs::set_permissions(temp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
         check_backlog(&backlog, 0, 0, 3, 0, 0);
