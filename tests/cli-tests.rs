@@ -33,7 +33,8 @@ fn test_missing_path(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &s
 
 #[test]
 fn test_permissions_check() {
-    // Setup the test environment.
+    // Setup the test environment. Note that this tests/assumes what the
+    // raw/editable file extensions are.
     let temp_dir = tempdir().unwrap();
     let mut fname = PathBuf::from(temp_dir.path());
     fname.push("file1.nef");
@@ -41,6 +42,9 @@ fn test_permissions_check() {
     std::fs::set_permissions(&fname, std::fs::Permissions::from_mode(0o600))
         .expect("Can't set permissions");
     let m = std::fs::metadata(&fname).expect("Can't stat just created file!");
+
+    std::fs::write(temp_dir.path().join("file2.zip"), b"").expect("Can't create file");
+    std::fs::write(temp_dir.path().join("file3.jpg"), b"").expect("Can't create file");
 
     let mut cmd = Command::cargo_bin("oneshot").unwrap();
     cmd.args(["--path", temp_dir.path().to_str().unwrap()])
@@ -50,13 +54,22 @@ fn test_permissions_check() {
     cmd.assert()
         .success()
         .stdout(predicate::str::contains(
-            "photo_backlog_counts{kind=\"photos\"} 1",
+            "photo_backlog_counts{kind=\"photos\"} 2",
         ))
         .stdout(predicate::str::contains(
-            "photo_backlog_errors{kind=\"ownership\"} 2",
+            "photo_backlog_errors{kind=\"ownership\"} 3",
         ))
         .stdout(predicate::str::contains(
             "photo_backlog_errors{kind=\"permissions\"} 1",
+        ))
+        .stdout(predicate::str::contains(
+            "photo_backlog_errors{kind=\"scan\"} 0",
+        ))
+        .stdout(predicate::str::contains(
+            "photo_backlog_errors{kind=\"unknown\"} 1",
+        ))
+        .stdout(predicate::str::contains(
+            "photo_backlog_folder_sizes{path=\".\"} 2",
         ));
 }
 

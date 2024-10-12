@@ -44,6 +44,20 @@ Will be exported as:
   ages, relative to the current time);
 - and an overall histogram with pending file ages will be exported;
 
+### Error types
+
+The program currently exports counters for four different error classes:
+
+- scan errors: some directories cannot be scanned due to permissions;
+- ownership errors: known file type user or group doesn't match the passed
+  owner/group;
+- permission errors: known file type or directory permissions doesn't match the
+  configured ones;
+- unknown errors: file extension is of unknown type; this is in order to make
+  sure that all files are either categorized or ignored;
+
+Suggestions for more (or less) checks are welcome.
+
 ## Motivation
 
 I always lag behind photo processing. When I do process, I like to see

@@ -206,6 +206,7 @@ pub fn encode_to_text(collector: PhotoBacklogCollector) -> Result<String, std::f
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsString;
 
     use rstest::rstest;
     use tempfile::tempdir;
@@ -237,7 +238,7 @@ mod tests {
         let collector = super::PhotoBacklogCollector {
             scan_path: temp_dir.path().to_path_buf(),
             ignored_exts: vec![],
-            raw_exts: vec![],
+            raw_exts: vec![OsString::from("nef")],
             editable_exts: vec![],
             age_buckets: vec![1.0],
             owner: None,

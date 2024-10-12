@@ -74,6 +74,7 @@ pub enum ErrorType {
     Scan,
     Ownership,
     Permissions,
+    Unknown,
 }
 
 #[derive(PartialEq, Eq)]
@@ -91,6 +92,7 @@ impl EncodeLabelValue for ErrorType {
             ErrorType::Scan => "scan",
             ErrorType::Ownership => "ownership",
             ErrorType::Permissions => "permissions",
+            ErrorType::Unknown => "unknown",
         };
         EncodeLabelValue::encode(&s, encoder)
     }
@@ -187,6 +189,7 @@ impl Backlog {
                 (ErrorType::Scan, 0),
                 (ErrorType::Ownership, 0),
                 (ErrorType::Permissions, 0),
+                (ErrorType::Unknown, 0),
             ]),
             total_files: 0,
             folders: HashMap::new(),
@@ -263,7 +266,13 @@ impl Backlog {
                 continue;
             }
 
-            // Here it's not an ignored entry, so let's process it.
+            if kind == FileKind::Unknown {
+                warn!("Unknown file type: {}", entry.path().to_string_lossy());
+                self.record_error(ErrorType::Unknown);
+                continue;
+            }
+
+            // Here it's not an ignored entry, nor an unknown one, so let's process it.
             self.record_file();
             if !check_ownership(config, path, &metadata, "File") {
                 self.record_error(ErrorType::Ownership);
@@ -394,13 +403,17 @@ mod tests {
         scan_errors: i64,
         ownership_errors: i64,
         permissions_errors: i64,
+        unknown_errors: i64,
     ) {
+        let expected_errors = HashMap::from([
+            (ErrorType::Scan, scan_errors),
+            (ErrorType::Ownership, ownership_errors),
+            (ErrorType::Permissions, permissions_errors),
+            (ErrorType::Unknown, unknown_errors),
+        ]);
         assert_that!(backlog.folders).has_length(expect_folders);
         assert_that!(backlog.total_files).is_equal_to(expect_files);
-        assert_that!(backlog.total_errors).contains_entry(ErrorType::Scan, scan_errors);
-        assert_that!(backlog.total_errors).contains_entry(ErrorType::Ownership, ownership_errors);
-        assert_that!(backlog.total_errors)
-            .contains_entry(ErrorType::Permissions, permissions_errors);
+        assert_that!(backlog.total_errors).is_equal_to(expected_errors);
     }
 
     fn check_has_dir_with(backlog: &Backlog, folder: &str, file_count: i64) {
@@ -424,14 +437,14 @@ mod tests {
     fn empty_dir(test_data: TestData, mut backlog: Backlog) {
         let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
-        check_backlog(&backlog, 0, 0, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0, 0, 0);
     }
     #[rstest]
     fn empty_dir_is_empty(test_data: TestData, mut backlog: Backlog) {
         let _ = test_data.get_subdir();
         let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
-        check_backlog(&backlog, 0, 0, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0, 0, 0);
     }
     #[rstest]
     fn no_extension_is_ignored(test_data: TestData, mut backlog: Backlog) {
@@ -439,7 +452,7 @@ mod tests {
         add_file(&subdir, "readme");
         let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
-        check_backlog(&backlog, 0, 0, 0, 0, 0);
+        check_backlog(&backlog, 0, 0, 0, 0, 0, 0);
     }
     #[rstest]
     fn ignored_extension_is_ignored(test_data: TestData, mut backlog: Backlog) {
@@ -448,7 +461,7 @@ mod tests {
         add_file(&subdir, "file.xmp");
         let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
-        check_backlog(&backlog, 1, 1, 0, 0, 0);
+        check_backlog(&backlog, 1, 1, 0, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[rstest]
@@ -457,7 +470,7 @@ mod tests {
         add_file(&subdir, "file.nef");
         let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
-        check_backlog(&backlog, 1, 1, 0, 0, 0);
+        check_backlog(&backlog, 1, 1, 0, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[rstest]
@@ -467,15 +480,26 @@ mod tests {
         add_file(&subdir, "dsc002.jpg");
         let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
-        check_backlog(&backlog, 1, 2, 0, 0, 0);
+        check_backlog(&backlog, 1, 2, 0, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 2);
+    }
+    #[rstest]
+    fn unknown_files(test_data: TestData, mut backlog: Backlog) {
+        let subdir = test_data.get_subdir();
+        add_file(&subdir, "dsc001.nef");
+        add_file(&subdir, "archive1.tar.gz");
+        add_file(&subdir, "archive2.zip");
+        let config = test_data.build_config(None, None, None, None, None);
+        backlog.scan(&config, test_data.now);
+        check_backlog(&backlog, 1, 1, 0, 0, 0, 2);
+        check_has_dir_with(&backlog, SUBDIR, 1);
     }
     #[rstest]
     fn file_in_root_dir(test_data: TestData, mut backlog: Backlog) {
         add_file(test_data.temp_dir.path(), "file.nef");
         let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
-        check_backlog(&backlog, 1, 1, 0, 0, 0);
+        check_backlog(&backlog, 1, 1, 0, 0, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 
@@ -487,7 +511,7 @@ mod tests {
         let mut config = test_data.build_config(None, None, None, None, None);
         config.root_path = &missing_dir;
         backlog.scan(&config, test_data.now);
-        check_backlog(&backlog, 0, 0, 1, 0, 0);
+        check_backlog(&backlog, 0, 0, 1, 0, 0, 0);
     }
 
     enum FailMode {
@@ -532,7 +556,7 @@ mod tests {
             (FailMode::Bad, _) | (_, FailMode::Bad) => 2,
             _ => 0,
         };
-        check_backlog(&backlog, 1, 1, 0, expected_errors, 0);
+        check_backlog(&backlog, 1, 1, 0, expected_errors, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 
@@ -594,7 +618,7 @@ mod tests {
             (_, true) => 1,
             _ => 0,
         };
-        check_backlog(&backlog, 1, 2, 0, 0, expected_errors);
+        check_backlog(&backlog, 1, 2, 0, 0, expected_errors, 0);
         check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 2);
     }
 
@@ -628,7 +652,7 @@ mod tests {
         // same ownership, which is generally correct), and the real file as
         // well, but the two extra files are ignored.
         let expected_errors = 3;
-        check_backlog(&backlog, 1, 1, 0, expected_errors, 1);
+        check_backlog(&backlog, 1, 1, 0, expected_errors, 1, 0);
         check_has_dir_with(&backlog, subdir.file_name().unwrap().to_str().unwrap(), 1);
     }
 
@@ -659,6 +683,6 @@ mod tests {
         let config = test_data.build_config(None, None, None, None, None);
         backlog.scan(&config, test_data.now);
         std::fs::set_permissions(temp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
-        check_backlog(&backlog, 0, 0, 3, 0, 0);
+        check_backlog(&backlog, 0, 0, 3, 0, 0, 0);
     }
 }
