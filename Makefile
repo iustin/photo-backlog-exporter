@@ -6,5 +6,5 @@ all: coverage
 
 .PHONY: coverage
 coverage:
-	cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+	cargo llvm-cov -q --all-features --workspace --lcov --output-path lcov.info
 	cargo llvm-cov report
