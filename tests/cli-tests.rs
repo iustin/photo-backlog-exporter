@@ -115,15 +115,15 @@ fn test_ignores_fifo() {
         ));
 }
 
-#[test]
-fn test_daemon_systemd_logging() {
-    let mut cmd = Command::cargo_bin("photo-backlog-exporter").unwrap();
+#[rstest]
+fn test_daemon_systemd_logging(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
+    let mut cmd = Command::cargo_bin(cmd_name).unwrap();
     cmd.env("RUST_LOG_SYSTEMD", "yes");
     cmd.env("RUST_LOG", "debug");
     cmd.arg("--help");
 
     cmd.assert().success().stderr(predicate::str::contains(
-        "<7>photo_backlog_exporter: Help requested, showing usage and exiting.",
+        "<7>photo_backlog_exporter::cli: Help requested, showing usage and exiting.",
     ));
 }
 
@@ -164,6 +164,6 @@ fn test_oneshot_systemd_logging() {
             "<4>photo_backlog_exporter: Can\'t determine parent path for ./fifo.nef",
         ))
         .stderr(predicate::str::contains(
-            "<6>oneshot: Starting up with the following options",
+            "<6>photo_backlog_exporter::cli: Starting up with the following options",
         ));
 }
