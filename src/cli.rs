@@ -158,10 +158,7 @@ where
 pub fn init_binary() -> Result<Option<CliOptions>, String> {
     enable_logging();
     match parse_args() {
-        Err(e) => {
-            log::error!("{}", e);
-            Err(e)
-        }
+        Err(e) => Err(log_error(e)),
         Ok(opts) if opts.help_requested() => {
             log::debug!("Help requested, showing usage and exiting.");
             eprintln!("{}", CliOptions::usage());
@@ -172,6 +169,11 @@ pub fn init_binary() -> Result<Option<CliOptions>, String> {
             Ok(Some(opts))
         }
     }
+}
+
+pub fn log_error(e: String) -> String {
+    log::error!("{}", e);
+    e
 }
 
 pub fn collector_from_args(opts: CliOptions) -> crate::prometheus::PhotoBacklogCollector {

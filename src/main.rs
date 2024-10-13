@@ -1,3 +1,4 @@
+use cli::log_error;
 use photo_backlog_exporter::*;
 
 #[tokio::main]
@@ -8,5 +9,5 @@ async fn main() -> Result<(), String> {
     };
 
     let (addr, app) = daemon::build_app(opts);
-    daemon::run_daemon(addr, app).await
+    daemon::run_daemon(addr, app).await.map_err(log_error)
 }
