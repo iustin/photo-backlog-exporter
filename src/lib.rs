@@ -100,7 +100,11 @@ impl EncodeLabelValue for ErrorType {
 
 pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, k: &FileKind) -> bool {
     let mut good = true;
-    if let Some(owner) = config.raw_owner {
+    if *k == FileKind::Editable {
+        if !config.editable_owners.is_empty() {
+            good &= config.editable_owners.contains(&m.uid());
+        }
+    } else if let Some(owner) = config.raw_owner {
         good &= owner == m.uid();
     }
     if let Some(group) = config.group {
@@ -560,6 +564,39 @@ mod tests {
             (FailMode::Bad, _) | (_, FailMode::Bad) => 2,
             _ => 0,
         };
+        check_backlog(&backlog, 1, 1, 0, expected_errors, 0, 0);
+        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
+    }
+
+    #[rstest]
+    fn test_ownership_editable(
+        mut test_data: TestData,
+        mut backlog: Backlog,
+        #[values(true, false)] do_fail: bool,
+        #[values(0, 1, 2, 5)] extra_allowed: u32,
+    ) {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let fname = add_file(test_data.temp_dir.path(), "file.jpg");
+        let m = std::fs::metadata(fname).expect("Can't stat just created file!");
+        fn generate_check(add_own: bool, id: u32, extras: u32) -> Vec<u32> {
+            let mut v = vec![];
+            if add_own {
+                v.push(id);
+            } else {
+                v.push(id + 1);
+            }
+            for e in 0..extras {
+                v.push(id + e + 2);
+            }
+            v
+        }
+        test_data
+            .editable_owners
+            .extend(generate_check(!do_fail, m.uid(), extra_allowed));
+        let config = test_data.build_config(None, None, None, None, None);
+        backlog.scan(&config, test_data.now);
+        let expected_errors = if do_fail { 1 } else { 0 };
         check_backlog(&backlog, 1, 1, 0, expected_errors, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }

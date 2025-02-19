@@ -26,7 +26,7 @@ fn test_ownership_logs() {
     let m = std::fs::metadata(&fname).expect("Can't stat just created file!");
     let _ = create_file(temp_dir.path(), "file2.jpg", 0o644);
     let _ = create_file(temp_dir.path(), "file3.jpg", 0o664);
-    let editable_owners = vec![];
+    let editable_owners = vec![m.uid() + 1];
     let config = Config {
         root_path: temp_dir.path(),
         ignored_exts: &[],
