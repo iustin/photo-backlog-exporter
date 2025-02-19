@@ -168,6 +168,7 @@ pub struct Config<'a> {
     pub raw_exts: &'a [OsString],
     pub editable_exts: &'a [OsString],
     pub raw_owner: Option<u32>,
+    pub editable_owners: &'a Vec<u32>,
     pub group: Option<u32>,
     pub dir_mode: Option<u32>,
     pub raw_file_mode: Option<u32>,
@@ -336,6 +337,7 @@ mod tests {
     pub struct TestData {
         pub temp_dir: TempDir,
         pub now: SystemTime,
+        pub editable_owners: Vec<u32>,
         pub ignored_exts: Vec<OsString>,
         pub raw_exts: Vec<OsString>,
         pub editable_exts: Vec<OsString>,
@@ -362,6 +364,7 @@ mod tests {
                 raw_exts: &self.raw_exts,
                 editable_exts: &self.editable_exts,
                 raw_owner: owner,
+                editable_owners: &self.editable_owners,
                 group,
                 dir_mode,
                 raw_file_mode,
@@ -386,6 +389,7 @@ mod tests {
             ignored_exts: vec![OsString::from("xmp")],
             raw_exts: vec![OsString::from("nef")],
             editable_exts: vec![OsString::from("jpg")],
+            editable_owners: vec![],
         }
     }
 

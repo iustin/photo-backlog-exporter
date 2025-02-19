@@ -108,6 +108,9 @@ pub struct CliOptions {
     #[options(help = "Optional owner expected for raw files")]
     pub raw_owner: Option<u32>,
 
+    #[options(help = "Optional owners expected for modifiable files")]
+    pub editable_owners: Vec<u32>,
+
     #[options(help = "Optional group expected for all files")]
     pub group: Option<u32>,
 
@@ -184,6 +187,7 @@ pub fn collector_from_args(opts: CliOptions) -> crate::prometheus::PhotoBacklogC
         editable_exts: opts.editable_exts,
         age_buckets: opts.age_buckets,
         raw_owner: opts.raw_owner,
+        editable_owners: opts.editable_owners,
         group: opts.group,
         dir_mode: opts.dir_mode,
         raw_file_mode: opts.raw_file_mode,
