@@ -105,7 +105,7 @@ pub struct CliOptions {
     )]
     pub age_buckets: Vec<f64>,
 
-    #[options(help = "Optional owner expected for raw files")]
+    #[options(help = "Optional owner expected for raw files and directories")]
     pub raw_owner: Option<u32>,
 
     #[options(help = "Optional owners expected for modifiable files")]
