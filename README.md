@@ -115,7 +115,7 @@ Optional arguments:
                            editable files, e.g. jpg, png, tif (default: jpg,jpeg,heic,heif,mov,mp4,avi,gpr,dng,png,tif,tiff,3gp,pano)
   -a, --age-buckets AGE-BUCKETS
                              Photos age histogram buckets, in weeks (default: 1,2,3,4,5,7,10,13,17,20,26,30,35,52,104)
-  -o, --owner OWNER          Optional owner expected for all files
+  --raw_owner OWNER          Optional owner expected for raw files
   -g, --group GROUP          Optional group expected for all files
   -d, --dir-mode DIR-MODE    Optional numeric mode (permissions) expected for directories, e.g 750
   -R, --raw-file-mode RAW-FILE-MODE

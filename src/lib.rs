@@ -100,7 +100,7 @@ impl EncodeLabelValue for ErrorType {
 
 pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -> bool {
     let mut good = true;
-    if let Some(owner) = config.owner {
+    if let Some(owner) = config.raw_owner {
         good &= owner == m.uid();
     }
     if let Some(group) = config.group {
@@ -119,7 +119,7 @@ pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -
             path.display(),
             m.uid(),
             m.gid(),
-            format_id(config.owner),
+            format_id(config.raw_owner),
             format_id(config.group)
         );
     }
@@ -167,7 +167,7 @@ pub struct Config<'a> {
     pub ignored_exts: &'a [OsString],
     pub raw_exts: &'a [OsString],
     pub editable_exts: &'a [OsString],
-    pub owner: Option<u32>,
+    pub raw_owner: Option<u32>,
     pub group: Option<u32>,
     pub dir_mode: Option<u32>,
     pub raw_file_mode: Option<u32>,
@@ -361,7 +361,7 @@ mod tests {
                 ignored_exts: &self.ignored_exts,
                 raw_exts: &self.raw_exts,
                 editable_exts: &self.editable_exts,
-                owner,
+                raw_owner: owner,
                 group,
                 dir_mode,
                 raw_file_mode,

@@ -31,7 +31,7 @@ fn test_ownership_logs() {
         ignored_exts: &[],
         raw_exts: &[OsString::from("nef")],
         editable_exts: &[OsString::from("jpg")],
-        owner: Some(m.uid() + 1),
+        raw_owner: Some(m.uid() + 1),
         group: None,
         raw_file_mode: Some(0o644),
         editable_file_mode: Some(0o664),

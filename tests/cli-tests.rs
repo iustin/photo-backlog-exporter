@@ -48,7 +48,7 @@ fn test_permissions_check() {
 
     let mut cmd = Command::cargo_bin("oneshot").unwrap();
     cmd.args(["--path", temp_dir.path().to_str().unwrap()])
-        .args(["--owner", &format!("{}", m.uid() + 1)])
+        .args(["--raw-owner", &format!("{}", m.uid() + 1)])
         .args(["--raw-file-mode", "644"]);
 
     cmd.assert()
