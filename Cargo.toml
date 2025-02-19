@@ -14,7 +14,7 @@ lto = true
 axum = "0.7.5"
 tokio = { version = "1", features = ["full"] }
 gumdrop = "0.8.1"
-prometheus-client = "0.22.3"
+prometheus-client = "0.23.1"
 walkdir = "2.5.0"
 log = "0.4.22"
 
