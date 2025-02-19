@@ -77,7 +77,7 @@ pub enum ErrorType {
     Unknown,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum FileKind {
     Raw,
     Editable,
@@ -98,7 +98,7 @@ impl EncodeLabelValue for ErrorType {
     }
 }
 
-pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -> bool {
+pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, k: &FileKind) -> bool {
     let mut good = true;
     if let Some(owner) = config.raw_owner {
         good &= owner == m.uid();
@@ -114,8 +114,8 @@ pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -
             }
         }
         info!(
-            "{} '{}' has wrong owner:group {}:{}, expected {}:{}",
-            kind,
+            "{:?} '{}' has wrong owner:group {}:{}, expected {}:{}",
+            k,
             path.display(),
             m.uid(),
             m.gid(),
@@ -126,7 +126,7 @@ pub fn check_ownership(config: &Config, path: &Path, m: &Metadata, kind: &str) -
     good
 }
 
-pub fn check_mode(config: &Config, path: &Path, m: &Metadata, k: FileKind) -> bool {
+pub fn check_mode(config: &Config, path: &Path, m: &Metadata, k: &FileKind) -> bool {
     let mut good = true;
     let mut kind = "(unknown)";
     let mut expected = 0o0;
@@ -228,14 +228,14 @@ impl Backlog {
                 }
             };
             if entry.file_type().is_dir() {
-                if !check_ownership(config, path, &metadata, "Directory") {
+                if !check_ownership(config, path, &metadata, &FileKind::None) {
                     self.record_error(ErrorType::Ownership);
                 }
                 if !check_mode(
                     config,
                     path,
                     &metadata,
-                    FileKind::None, /* misuse, but… */
+                    &FileKind::None, /* misuse, but… */
                 ) {
                     self.record_error(ErrorType::Permissions);
                 }
@@ -275,10 +275,10 @@ impl Backlog {
 
             // Here it's not an ignored entry, nor an unknown one, so let's process it.
             self.record_file();
-            if !check_ownership(config, path, &metadata, "File") {
+            if !check_ownership(config, path, &metadata, &kind) {
                 self.record_error(ErrorType::Ownership);
             }
-            if !check_mode(config, path, &metadata, kind) {
+            if !check_mode(config, path, &metadata, &kind) {
                 self.record_error(ErrorType::Permissions);
             }
 
