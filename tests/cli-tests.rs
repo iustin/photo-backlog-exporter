@@ -100,7 +100,14 @@ fn test_ignores_fifo() {
     let temp_dir = tempdir().unwrap();
     let mut fname = PathBuf::from(temp_dir.path());
     fname.push("fifo.nef");
-    Command::new("mkfifo").arg(&fname).spawn().unwrap();
+    let ecode = Command::new("mkfifo")
+        .arg(&fname)
+        .spawn()
+        .unwrap()
+        .wait()
+        .expect("failed to wait on mkfifo");
+
+    assert!(ecode.success());
 
     let mut cmd = Command::cargo_bin("oneshot").unwrap();
 
