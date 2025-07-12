@@ -28,10 +28,10 @@ pub fn build_app(opts: cli::CliOptions) -> (SocketAddr, Router) {
 pub async fn run_daemon(addr: SocketAddr, app: Router) -> Result<(), String> {
     let listener = TcpListener::bind(&addr)
         .await
-        .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
+        .map_err(|e| format!("Failed to bind to {addr}: {e}"))?;
     axum::serve(listener, app)
         .await
-        .map_err(|e| format!("Server error: {}", e))
+        .map_err(|e| format!("Server error: {e}"))
 }
 
 // metrics handler

@@ -226,14 +226,14 @@ mod tests {
     #[case::three_dirs_one_zero_two([1, 0, 2].to_vec())]
     fn test_backlog_encoding(#[case] folders_config: Vec<i32>) {
         fn format_dir(pos: usize) -> String {
-            format!("dir-{}", pos)
+            format!("dir-{pos}")
         }
         let temp_dir = tempdir().unwrap();
         for (pos, folder_size) in folders_config.iter().enumerate() {
             let folder = temp_dir.path().join(format_dir(pos));
             std::fs::create_dir(&folder).unwrap();
             for i in 0..*folder_size {
-                let file = folder.join(format!("{}.nef", i));
+                let file = folder.join(format!("{i}.nef"));
                 std::fs::File::create(&file).unwrap();
             }
         }
@@ -254,7 +254,7 @@ mod tests {
 
         // Now check the encoded values.
         let total_photos = folders_config.iter().sum::<i32>();
-        let photos_string = format!("photo_backlog_counts{{kind=\"photos\"}} {}", total_photos);
+        let photos_string = format!("photo_backlog_counts{{kind=\"photos\"}} {total_photos}");
         assert_that(&buffer).contains(&photos_string);
         let folder_string = format!(
             "photo_backlog_counts{{kind=\"folders\"}} {}",
@@ -273,7 +273,7 @@ mod tests {
             assert_that(&buffer).contains(&folder_string);
         }
         assert_that!(buffer).contains("photo_backlog_processing_time_seconds ");
-        let ages_string = format!("photo_backlog_ages_count {}", total_photos);
+        let ages_string = format!("photo_backlog_ages_count {total_photos}");
         assert_that!(buffer).contains(ages_string);
         assert_that!(buffer).contains("photo_backlog_errors{kind=\"scan\"} 0");
         assert_that!(buffer).contains("photo_backlog_errors{kind=\"ownership\"} 0");
