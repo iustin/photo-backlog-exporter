@@ -4,10 +4,10 @@ This is a very simple, file-counter and `mtime`-stats aggregator,
 Linux program designed to just tell me how many pictures I still have
 to process. It's an (expanded) port of a previous Python version,
 mostly as a learning exercise, and is designed to work together with
-the file structure as used by github.com/iustin/corydalis.
+the file structure as used by <http://github.com/iustin/corydalis>.
 
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/iustin/photo-backlog-exporter/rust.yml?branch=main)](https://github.com/iustin/pyxattr/actions/workflows/ci.yml)
-[![Codecov](https://img.shields.io/codecov/c/github/iustin/photo-backlog-exporter)](https://codecov.io/gh/iustin/photo-backlog-exporter)
+[![`Codecov`](https://img.shields.io/codecov/c/github/iustin/photo-backlog-exporter)](https://codecov.io/gh/iustin/photo-backlog-exporter)
 
 ## What does it do?
 
@@ -84,11 +84,12 @@ Run the usual `cargo build -r`. Copy the resulting binary (from
   output somewhere so that the common `node-exporter` can pick it up.
 
 Since this doesn't need any special rights, just to be able to look at
-directories and files, I run the daemon as a dynamic systemd user, just
-with supplemental groups my photos group. You can find an example
-systemd unit in `examples/systemd.server`. This is accompanied by the
-"defaults" file `examples/prometheus-photo-backlog-exporter.defaults`
-(see the service file, move the defaults where it is appropriate).
+directories and files, I run the daemon as a dynamic `systemd` user,
+just with my photos group as a supplemental groups. You can find an
+example `systemd` unit in `examples/systemd.server`. This is accompanied
+by the "defaults" file
+`examples/prometheus-photo-backlog-exporter.defaults` (see the service
+file, move the defaults where it is appropriate).
 
 ## Usage
 
@@ -131,7 +132,7 @@ these are extensions for which files should be completely
 ignored. For example, the `xmp` extension should normally be ignored
 because Lightroom can store metadata (if so configured) outside of the
 catalog and in `xmp` files for each proprietary RAW format. (Yes, this
-also means that the mtime-counting doesn't work well for `jpeg` files,
+also means that the `mtime`-counting doesn't work well for `jpeg` files,
 for example. Sorry - if you have ideas, file a bug!)
 
 The file permissions are split in two categories:
@@ -148,9 +149,9 @@ options.
 
 Note that the binary uses the `env_logger` rust package, and thus
 logging can be configured via the usual `RUST_LOG=info` and similar
-environment variables. This is why the example systemd service file
-mentioned uses an env file, to allow easy passing of both arguments
-but also (in this case) `RUST_LOG`.
+environment variables. This is why the example `systemd` service file
+mentioned uses an env file, to allow easy passing of both arguments but
+also (in this case) `RUST_LOG`.
 
 ## Rust
 
