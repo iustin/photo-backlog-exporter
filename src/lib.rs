@@ -354,14 +354,14 @@ mod tests {
             subdir
         }
 
-        pub fn build_config(
-            &self,
+        pub fn build_config<'a>(
+            &'a self,
             owner: Option<u32>,
             group: Option<u32>,
             dir_mode: Option<u32>,
             raw_file_mode: Option<u32>,
             editable_file_mode: Option<u32>,
-        ) -> Config {
+        ) -> Config<'a> {
             Config {
                 root_path: self.temp_dir.path(),
                 ignored_exts: &self.ignored_exts,
