@@ -11,7 +11,7 @@ strip = true
 lto = true
 
 [dependencies]
-axum = "0.7.5"
+axum = "0.8.8"
 tokio = { version = "1", features = ["full"] }
 gumdrop = "0.8.1"
 prometheus-client = "0.24.0"
@@ -27,7 +27,7 @@ features = ["auto-color", "humantime"]
 tempfile = "3.10.1"
 rstest = "0.26.1"
 speculoos = "0.13.0"
-axum-test = "15.3.0"
+axum-test = "18.7.0"
 testing_logger = "0.1.1"
 assert_cmd = "2.0.15"
 predicates = "3.1.2"
