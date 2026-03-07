@@ -111,10 +111,10 @@ impl Collector for PhotoBacklogCollector {
             errors_fam.get_or_create(&labels).set(*count);
         }
 
-        for (path, (cnt, age)) in backlog.folders.drain() {
+        for (path, (cnt, min_mt)) in backlog.folders.drain() {
             let labels = FolderLabels { path };
             folder_sizes_fam.get_or_create(&labels).set(cnt);
-            folder_ages_fam.get_or_create(&labels).set(age);
+            folder_ages_fam.get_or_create(&labels).set(min_mt);
         }
 
         let totals_encoder = encoder
@@ -159,7 +159,7 @@ impl Collector for PhotoBacklogCollector {
         let folder_ages_encoder = encoder
             .encode_descriptor(
                 "photo_backlog_folder_ages",
-                "Per-folder picture-seconds backlog",
+                "Oldest file modification time in folder (Unix timestamp)",
                 None,
                 folder_ages_fam.metric_type(),
             )
@@ -172,7 +172,7 @@ impl Collector for PhotoBacklogCollector {
         let ages_histogram_encoder = encoder
             .encode_descriptor(
                 "photo_backlog_ages",
-                "Age of files in the backlog",
+                "Age of files in the backlog (relative to newest file)",
                 None,
                 backlog.ages_histogram.metric_type(),
             )

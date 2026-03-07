@@ -185,6 +185,7 @@ pub struct Backlog {
     pub total_files: i64,
     pub folders: HashMap<String, (i64, f64)>,
     pub ages_histogram: Histogram,
+    pub newest_mtime: SystemTime,
 }
 
 impl Backlog {
@@ -199,6 +200,7 @@ impl Backlog {
             total_files: 0,
             folders: HashMap::new(),
             ages_histogram: Histogram::new(buckets),
+            newest_mtime: SystemTime::UNIX_EPOCH,
         }
     }
     pub fn record_file(&mut self) {
@@ -212,7 +214,9 @@ impl Backlog {
             .or_insert(1);
     }
 
-    pub fn scan(&mut self, config: &Config, now: SystemTime) {
+    pub fn scan(&mut self, config: &Config, _now: SystemTime) {
+        // First pass: collect all entries
+        let mut all_entries = Vec::new();
         for maybe_entry in WalkDir::new(config.root_path) {
             let entry = match maybe_entry {
                 Err(e) => {
@@ -222,6 +226,24 @@ impl Backlog {
                 }
                 Ok(entry) => entry,
             };
+            all_entries.push(entry);
+        }
+
+        // Find the maximum mtime among files
+        for entry in &all_entries {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if let Ok(metadata) = entry.metadata() {
+                let mtime = metadata.modified().unwrap_or(self.newest_mtime);
+                if mtime > self.newest_mtime {
+                    self.newest_mtime = mtime;
+                }
+            }
+        }
+
+        // Second pass: process entries
+        for entry in all_entries {
             let path = entry.path();
             let metadata = match entry.metadata() {
                 Ok(m) => m,
@@ -303,16 +325,26 @@ impl Backlog {
             let folder = String::from(parent.to_string_lossy());
 
             // Now update folders struct.
-            let age = relative_age(now, &metadata).as_secs_f64();
+            let mtime_secs = metadata
+                .modified()
+                .unwrap_or(self.newest_mtime)
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_secs_f64())
+                .unwrap_or(0.0);
             self.folders
                 .entry(folder)
-                .and_modify(|(c, a)| {
+                .and_modify(|(c, min_mt)| {
                     *c += 1;
-                    *a += age;
+                    if mtime_secs < *min_mt {
+                        *min_mt = mtime_secs;
+                    }
                 })
-                .or_insert((1, age));
+                .or_insert((1, mtime_secs));
+
+            // Compute relative age from newest file.
+            let age = relative_age(self.newest_mtime, &metadata);
             // And observe the age for the ages histogram.
-            self.ages_histogram.observe(age);
+            self.ages_histogram.observe(age.as_secs_f64());
         }
     }
 }

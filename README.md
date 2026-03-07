@@ -40,9 +40,15 @@ Will be exported as:
   the usage section;
 - 2 directories (`2023-11-01 Long trip` and `2023-11-19 Some
   pictures`);
-- for each directory, an aggregated "age" will be computed (sum of
-  ages, relative to the current time);
-- and an overall histogram with pending file ages will be exported;
+- for each directory, an "age" will be computed as the timestamp (relative to
+  Unix epoch) of the oldest file;
+- and an overall histogram with pending file ages will be exported, computed as
+  the age relative to the newest file in the backlog;
+
+The design of the metrics is intended to eliminate the churn in values if the
+filesystem is not actually changing. Previous versions were computing ages as
+relative to the current time, which gave easier to graph values, but were very
+heavy on storage costs due to always-changing metric values.
 
 ### Error types
 
