@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 use prometheus_client::collector::Collector;
 use prometheus_client::encoding::text::encode;
@@ -65,7 +65,6 @@ struct FolderLabels {
 impl Collector for PhotoBacklogCollector {
     fn encode(&self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
         let instant = Instant::now(); // for this processor's execution time.
-        let now = SystemTime::now(); // for file age, which is seconds.
 
         let config = super::Config {
             root_path: &self.scan_path,
@@ -82,7 +81,7 @@ impl Collector for PhotoBacklogCollector {
 
         let mut backlog = super::Backlog::new(self.age_buckets.iter().copied());
 
-        backlog.scan(&config, now);
+        backlog.scan(&config);
 
         let totals_fam = Family::<TotalLabels, Gauge>::default();
         let errors_fam = Family::<ErrorLabels, Gauge>::default();

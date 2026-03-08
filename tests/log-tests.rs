@@ -2,7 +2,6 @@ use std::ffi::OsString;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::SystemTime;
 
 use speculoos::prelude::*;
 use tempfile::tempdir;
@@ -40,8 +39,7 @@ fn test_ownership_logs() {
         dir_mode: None,
     };
     let mut backlog = Backlog::new([].into_iter());
-    let now = SystemTime::now();
-    backlog.scan(&config, now);
+    backlog.scan(&config);
     assert_that!(backlog.folders).has_length(1);
     assert_that!(backlog.total_files).is_equal_to(3);
     assert_that!(backlog.total_errors).contains_entry(ErrorType::Scan, 0);

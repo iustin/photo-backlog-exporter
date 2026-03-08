@@ -214,7 +214,7 @@ impl Backlog {
             .or_insert(1);
     }
 
-    pub fn scan(&mut self, config: &Config, _now: SystemTime) {
+    pub fn scan(&mut self, config: &Config) {
         // First pass: collect all entries
         let mut all_entries = Vec::new();
         for maybe_entry in WalkDir::new(config.root_path) {
@@ -358,7 +358,6 @@ mod tests {
     use std::os::unix::fs::MetadataExt;
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
-    use std::time::SystemTime;
     use tempfile::tempdir;
     use tempfile::TempDir;
     extern crate speculoos;
@@ -372,7 +371,6 @@ mod tests {
     #[derive(Debug)]
     pub struct TestData {
         pub temp_dir: TempDir,
-        pub now: SystemTime,
         pub editable_owners: Vec<u32>,
         pub ignored_exts: Vec<OsString>,
         pub raw_exts: Vec<OsString>,
@@ -421,7 +419,6 @@ mod tests {
     fn test_data() -> TestData {
         TestData {
             temp_dir: tempdir().unwrap(),
-            now: SystemTime::now(),
             ignored_exts: vec![OsString::from("xmp")],
             raw_exts: vec![OsString::from("nef")],
             editable_exts: vec![OsString::from("jpg")],
@@ -476,14 +473,14 @@ mod tests {
     #[rstest]
     fn empty_dir(test_data: TestData, mut backlog: Backlog) {
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 0, 0, 0, 0, 0, 0);
     }
     #[rstest]
     fn empty_dir_is_empty(test_data: TestData, mut backlog: Backlog) {
         let _ = test_data.get_subdir();
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 0, 0, 0, 0, 0, 0);
     }
     #[rstest]
@@ -491,7 +488,7 @@ mod tests {
         let subdir = test_data.get_subdir();
         add_file(&subdir, "readme");
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 0, 0, 0, 0, 0, 0);
     }
     #[rstest]
@@ -500,7 +497,7 @@ mod tests {
         add_file(&subdir, "file.nef");
         add_file(&subdir, "file.xmp");
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 1, 1, 0, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
@@ -509,7 +506,7 @@ mod tests {
         let subdir = test_data.get_subdir();
         add_file(&subdir, "file.nef");
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 1, 1, 0, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
@@ -519,7 +516,7 @@ mod tests {
         add_file(&subdir, "dsc001.nef");
         add_file(&subdir, "dsc002.jpg");
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 1, 2, 0, 0, 0, 0);
         check_has_dir_with(&backlog, SUBDIR, 2);
     }
@@ -530,7 +527,7 @@ mod tests {
         add_file(&subdir, "archive1.tar.gz");
         add_file(&subdir, "archive2.zip");
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 1, 1, 0, 0, 0, 2);
         check_has_dir_with(&backlog, SUBDIR, 1);
     }
@@ -538,7 +535,7 @@ mod tests {
     fn file_in_root_dir(test_data: TestData, mut backlog: Backlog) {
         add_file(test_data.temp_dir.path(), "file.nef");
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 1, 1, 0, 0, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
@@ -550,7 +547,7 @@ mod tests {
         missing_dir.push("no-such_dir");
         let mut config = test_data.build_config(None, None, None, None, None);
         config.root_path = &missing_dir;
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         check_backlog(&backlog, 0, 0, 1, 0, 0, 0);
     }
 
@@ -589,7 +586,7 @@ mod tests {
         let group_check = generate_check(&group_mode, m.gid());
         // No permissions check.
         let config = test_data.build_config(user_check, group_check, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         let expected_errors = match (user_mode, group_mode) {
             // The expected errors is two, because both the top level directory
             // and the file should fail the check.
@@ -627,7 +624,7 @@ mod tests {
             .editable_owners
             .extend(generate_check(!do_fail, m.uid(), extra_allowed));
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         let expected_errors = if do_fail { 1 } else { 0 };
         check_backlog(&backlog, 1, 1, 0, expected_errors, 0, 0);
         check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
@@ -685,7 +682,7 @@ mod tests {
         std::fs::set_permissions(&subdir, dir_perms).unwrap();
         // Now actually do the permissions check.
         let config = test_data.build_config(None, None, dir_check, raw_check, jpg_check);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         let expected_errors = match (what, check_fail) {
             (TestWhat::Directory, true) => 2,
             (_, true) => 1,
@@ -719,7 +716,7 @@ mod tests {
             Some(wrong_mode),
             None,
         );
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         // The top-level directory and sub-directory have wrong ownership (the
         // assumption here is that both temp directories and temp files have the
         // same ownership, which is generally correct), and the real file as
@@ -754,7 +751,7 @@ mod tests {
         };
         std::fs::set_permissions(temp_dir, std::fs::Permissions::from_mode(0o600)).unwrap();
         let config = test_data.build_config(None, None, None, None, None);
-        backlog.scan(&config, test_data.now);
+        backlog.scan(&config);
         std::fs::set_permissions(temp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
         check_backlog(&backlog, 0, 0, 3, 0, 0, 0);
     }
