@@ -74,7 +74,7 @@ pub struct CliOptions {
 
     #[options(
         help = "ignored file extension",
-        default = "xmp,lua,DS_Store",
+        default = "xmp,acr,lua,DS_Store",
         parse(from_str = "parse_exts"),
         no_multi
     )]
@@ -82,7 +82,7 @@ pub struct CliOptions {
 
     #[options(
         help = "raw or other files that should not be editable",
-        default = "nef,cr2,arw,orf,raf",
+        default = "nef,cr2,arw,orf,raf,avif",
         parse(from_str = "parse_exts"),
         no_multi
     )]
@@ -90,7 +90,7 @@ pub struct CliOptions {
 
     #[options(
         help = "editable files, e.g. jpg, png, tif",
-        default = "jpg,jpeg,heic,heif,mov,mp4,avi,gpr,dng,png,tif,tiff,3gp,pano",
+        default = "jpg,jpeg,heic,heif,mov,mp4,avi,gpr,dng,png,tif,tiff,3gp,pano,webp",
         parse(from_str = "parse_exts"),
         no_multi
     )]
