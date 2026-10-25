@@ -1,4 +1,3 @@
-use assert_cmd::cargo::CommandCargoExt;
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
 use result::ResultAssertions;
@@ -11,9 +10,17 @@ use std::process::Command;
 use tempfile::tempdir;
 use tokio::net::TcpListener;
 
+fn cargo_bin(name: &str) -> Command {
+    match name {
+        "oneshot" => Command::new(assert_cmd::cargo_bin!("oneshot")),
+        "photo-backlog-exporter" => Command::new(assert_cmd::cargo_bin!("photo-backlog-exporter")),
+        other => panic!("unknown test binary: {other}"),
+    }
+}
+
 #[rstest]
 fn test_help(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
-    let mut cmd = Command::cargo_bin(cmd_name).unwrap();
+    let mut cmd = cargo_bin(cmd_name);
     cmd.arg("--help");
 
     cmd.assert()
@@ -24,7 +31,7 @@ fn test_help(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
 
 #[rstest]
 fn test_missing_path(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
-    let mut cmd = Command::cargo_bin(cmd_name).unwrap();
+    let mut cmd = cargo_bin(cmd_name);
 
     cmd.assert()
         .failure()
@@ -46,7 +53,7 @@ fn test_permissions_check() {
     std::fs::write(temp_dir.path().join("file2.zip"), b"").expect("Can't create file");
     std::fs::write(temp_dir.path().join("file3.jpg"), b"").expect("Can't create file");
 
-    let mut cmd = Command::cargo_bin("oneshot").unwrap();
+    let mut cmd = cargo_bin("oneshot");
     cmd.args(["--path", temp_dir.path().to_str().unwrap()])
         .args(["--raw-owner", &format!("{}", m.uid() + 1)])
         .args(["--editable-owners", &format!("{}", m.uid() + 1)])
@@ -81,7 +88,7 @@ fn test_relative_dir() {
     fname.push("file1.nef");
     std::fs::write(&fname, b"").expect("Can't create file");
 
-    let mut cmd = Command::cargo_bin("oneshot").unwrap();
+    let mut cmd = cargo_bin("oneshot");
 
     cmd.current_dir(temp_dir.path()).args(["--path", "."]);
 
@@ -109,7 +116,7 @@ fn test_ignores_fifo() {
 
     assert!(ecode.success());
 
-    let mut cmd = Command::cargo_bin("oneshot").unwrap();
+    let mut cmd = cargo_bin("oneshot");
 
     cmd.current_dir(temp_dir.path()).args(["--path", "."]);
 
@@ -125,7 +132,7 @@ fn test_ignores_fifo() {
 
 #[rstest]
 fn test_daemon_systemd_logging(#[values("oneshot", "photo-backlog-exporter")] cmd_name: &str) {
-    let mut cmd = Command::cargo_bin(cmd_name).unwrap();
+    let mut cmd = cargo_bin(cmd_name);
     cmd.env("RUST_LOG_SYSTEMD", "yes");
     cmd.env("RUST_LOG", "debug");
     cmd.arg("--help");
@@ -143,7 +150,7 @@ async fn test_daemon_fail_port() {
     let local_addr = ok_listener.local_addr();
     let addr_with_port = assert_that!(local_addr).is_ok().subject;
 
-    let mut cmd = Command::cargo_bin("photo-backlog-exporter").unwrap();
+    let mut cmd = cargo_bin("photo-backlog-exporter");
     cmd.env("RUST_LOG_SYSTEMD", "yes");
     cmd.env("RUST_LOG", "debug");
     cmd.args(["--port", &addr_with_port.port().to_string(), "--path", "."]);
@@ -161,7 +168,7 @@ fn test_oneshot_systemd_logging() {
 
     std::fs::write(&fname, b"").expect("Can't create file");
 
-    let mut cmd = Command::cargo_bin("oneshot").unwrap();
+    let mut cmd = cargo_bin("oneshot");
     cmd.current_dir(temp_dir.path()).args(["--path", "."]);
     cmd.env("RUST_LOG_SYSTEMD", "yes");
     cmd.env("RUST_LOG", "debug");
