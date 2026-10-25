@@ -62,7 +62,7 @@ mod tests {
 
         let opts = cli::parse_args_from(&["--path", temp_dir_str]).expect("parse_args");
         let (_addr, app) = super::build_app(opts);
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         let response = server.get("/metrics").await;
         response.assert_status_ok();
         let raw_text = response.text();
