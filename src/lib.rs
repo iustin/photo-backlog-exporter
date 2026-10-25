@@ -265,6 +265,16 @@ pub struct Config<'a> {
     pub container_regex: &'a Regex,
 }
 
+fn file_kind(path: &Path, config: &Config) -> FileKind {
+    match path.extension() {
+        None => FileKind::None,
+        Some(ext) if config.ignored_exts.iter().any(|c| c == ext) => FileKind::Ignored,
+        Some(ext) if config.raw_exts.iter().any(|c| c == ext) => FileKind::Raw,
+        Some(ext) if config.editable_exts.iter().any(|c| c == ext) => FileKind::Editable,
+        Some(_) => FileKind::Unknown,
+    }
+}
+
 #[derive(Debug)]
 pub struct Backlog {
     pub total_errors: HashMap<ErrorType, i64>,
@@ -315,9 +325,15 @@ impl Backlog {
             all_entries.push(entry);
         }
 
-        // Find the maximum mtime among files
+        // Newest counted file. The age histogram is relative to this.
         for entry in &all_entries {
             if !entry.file_type().is_file() {
+                continue;
+            }
+            if !matches!(
+                file_kind(entry.path(), config),
+                FileKind::Raw | FileKind::Editable
+            ) {
                 continue;
             }
             if let Ok(metadata) = entry.metadata() {
@@ -359,20 +375,7 @@ impl Backlog {
                 // We don't care about other file types.
                 continue;
             }
-            let kind = match entry.path().extension() {
-                None => FileKind::None,
-                Some(ext) => {
-                    if config.ignored_exts.iter().any(|c| c == ext) {
-                        FileKind::Ignored
-                    } else if config.raw_exts.iter().any(|c| c == ext) {
-                        FileKind::Raw
-                    } else if config.editable_exts.iter().any(|c| c == ext) {
-                        FileKind::Editable
-                    } else {
-                        FileKind::Unknown
-                    }
-                }
-            };
+            let kind = file_kind(path, config);
 
             if kind == FileKind::Ignored || kind == FileKind::None {
                 // We don't care about ignored files, or files without extension.
@@ -524,6 +527,15 @@ mod tests {
         p
     }
 
+    fn set_mtime(path: &Path, time: std::time::SystemTime) {
+        std::fs::File::options()
+            .write(true)
+            .open(path)
+            .expect("open file")
+            .set_modified(time)
+            .expect("set mtime");
+    }
+
     fn check_backlog(
         backlog: &Backlog,
         expect_folders: usize,
@@ -621,6 +633,39 @@ mod tests {
         backlog.scan(&config);
         check_backlog(&backlog, 1, 1, 0, 0, 0, 2);
         check_has_dir_with(&backlog, SUBDIR, 1);
+    }
+
+    #[rstest]
+    fn histogram_reference_is_newest_counted_file(test_data: TestData, mut backlog: Backlog) {
+        let subdir = test_data.get_subdir();
+        let older = add_file(&subdir, "old.nef");
+        let newer = add_file(&subdir, "new.jpg");
+        let ignored = add_file(&subdir, "sidecar.xmp");
+        let unknown = add_file(&subdir, "notes.txt");
+        let bare = add_file(&subdir, "README");
+        let base =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        let day = std::time::Duration::from_secs(86_400);
+        set_mtime(&older, base);
+        set_mtime(&newer, base + day);
+        set_mtime(&ignored, base + day * 10);
+        set_mtime(&unknown, base + day * 10);
+        set_mtime(&bare, base + day * 10);
+
+        let config = test_data.build_config(None, None, None, None, None);
+        backlog.scan(&config);
+
+        let newer_mtime = std::fs::metadata(&newer)
+            .expect("stat newer")
+            .modified()
+            .expect("newer mtime");
+        let ignored_mtime = std::fs::metadata(&ignored)
+            .expect("stat ignored")
+            .modified()
+            .expect("ignored mtime");
+        assert_that!(ignored_mtime > newer_mtime).is_true();
+        assert_that!(backlog.newest_mtime).is_equal_to(newer_mtime);
+        check_backlog(&backlog, 1, 2, 0, 0, 0, 1);
     }
     #[rstest]
     fn file_in_root_dir(test_data: TestData, mut backlog: Backlog) {
