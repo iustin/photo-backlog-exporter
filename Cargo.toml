@@ -26,7 +26,7 @@ features = ["auto-color", "humantime"]
 
 [dev-dependencies]
 tempfile = "3.10.1"
-rstest = "0.26.1"
+rstest = "0.28.0"
 speculoos = "0.13.0"
 axum-test = "18.7.0"
 testing_logger = "0.1.1"
