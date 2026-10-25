@@ -45,6 +45,38 @@ Will be exported as:
 - and an overall histogram with pending file ages will be exported, computed as
   the age relative to the newest file in the backlog;
 
+That first-level aggregation is the default. `--container-regex` can
+treat some of those directories as containers instead. The default
+value is an empty string, compiled as a full match of `^$`, which matches no directory
+name, so nothing changes unless you pass a pattern.
+
+A top-level directory whose name fully matches the regex is only
+filesystem organization. Each child directory is exported as
+`container/child` (for example `2024/2024-01-01 New year vacation`);
+anything deeper still rolls into that child. A counted file that sits
+directly in the container is exported under the container name itself.
+Non-matching top-level directories stay single picture events. Only
+one extra level is recognized: a child directory is never itself a
+container, so `2024/2025/event/a.jpg` is `2024/2025`.
+
+```shell
+incoming/
+├── 2024/
+│   ├── 2024-01-01 New year vacation/
+│   │   └── Day 1/
+│   │       └── a.jpg
+│   └── stray.jpg
+└── 2023-11-19 Some pictures/
+    └── b.jpg
+```
+
+With `--container-regex '^\d{4}$'` the folder paths are
+`2024/2024-01-01 New year vacation`, `2024`, and
+`2023-11-19 Some pictures`. A non-default pattern rewrites those
+`path` label values on the next scrape. `\d{4}` and `^\d{4}$` are the
+same match: the pattern must cover the whole directory name, so it
+does not split `2024-01-01 Trip`.
+
 The design of the metrics is intended to eliminate the churn in values if the
 filesystem is not actually changing. Previous versions were computing ages as
 relative to the current time, which gave easier to graph values, but were very
@@ -131,7 +163,16 @@ Optional arguments:
                            Optional numeric mode (permissions) expected for non-editable files, e.g. 640
   -E, --editable-file-mode EDITABLE-FILE-MODE
                            Optional numeric mode (permissions) expected for editable files, e.g. 660
+  -c, --container-regex CONTAINER-REGEX
+                           regex of top-level container directory names; empty matches none (default: )
 ```
+
+`--container-regex` is empty by default. That empty string is compiled
+as a full match of `^$` and matches no folder, which keeps the flat first-level keys.
+The pattern is always matched against the whole directory name, so `\d{4}` does not
+also match `2024-01-01 Trip`.
+Pass something like `^\d{4}$` after nesting picture events under year
+directories. See the directory-structure section above.
 
 I hope they are self-explanatory. Well, maybe the `--ignored-exts`:
 these are extensions for which files should be completely

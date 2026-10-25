@@ -17,6 +17,7 @@ gumdrop = "0.8.1"
 prometheus-client = "0.24.0"
 walkdir = "2.5.0"
 log = "0.4.22"
+regex = "1"
 
 [dependencies.env_logger]
 version = "0.11.5"

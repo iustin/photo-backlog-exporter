@@ -3,6 +3,7 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
 use std::path::PathBuf;
 
+use regex::Regex;
 use speculoos::prelude::*;
 use tempfile::tempdir;
 
@@ -26,6 +27,7 @@ fn test_ownership_logs() {
     let _ = create_file(temp_dir.path(), "file2.jpg", 0o644);
     let _ = create_file(temp_dir.path(), "file3.jpg", 0o664);
     let editable_owners = vec![m.uid() + 1];
+    let container_regex = Regex::new("^$").unwrap();
     let config = Config {
         root_path: temp_dir.path(),
         ignored_exts: &[],
@@ -37,6 +39,7 @@ fn test_ownership_logs() {
         raw_file_mode: Some(0o644),
         editable_file_mode: Some(0o664),
         dir_mode: None,
+        container_regex: &container_regex,
     };
     let mut backlog = Backlog::new([].into_iter());
     backlog.scan(&config);

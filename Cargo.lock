@@ -1054,6 +1054,7 @@ dependencies = [
  "log",
  "predicates",
  "prometheus-client",
+ "regex",
  "rstest",
  "speculoos",
  "tempfile",

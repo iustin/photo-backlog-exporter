@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use gumdrop::Options;
+use regex::Regex;
 
 const WEEK: f64 = 7.0 * 86400.0;
 
@@ -56,6 +57,29 @@ pub fn parse_weeks(s: &str) -> Result<Vec<f64>, ParseFloatError> {
 /// assert!(parse_octal_mode("a").is_err());
 pub fn parse_octal_mode(mode_str: &str) -> Result<u32, ParseIntError> {
     u32::from_str_radix(mode_str, 8)
+}
+
+/// Compiles a container-folder regex.
+///
+/// An empty string is rewritten to `^$`, which matches no real directory name.
+/// The pattern is then wrapped as `\A(?:...)\z`, so `is_match` is a full-name match.
+/// Example:
+/// ```
+/// use photo_backlog_exporter::cli::parse_container_regex;
+/// assert_eq!(parse_container_regex("").unwrap().as_str(), r"\A(?:^$)\z");
+/// assert_eq!(parse_container_regex("^$").unwrap().as_str(), r"\A(?:^$)\z");
+/// let year = parse_container_regex(r"\d{4}").unwrap();
+/// assert!(year.is_match("2024"));
+/// assert!(!year.is_match("2024-01-01 Trip"));
+/// let either = parse_container_regex("foo|bar").unwrap();
+/// assert!(either.is_match("foo"));
+/// assert!(!either.is_match("foobar"));
+/// assert!(parse_container_regex("[").is_err());
+/// ```
+pub fn parse_container_regex(s: &str) -> Result<Regex, regex::Error> {
+    let pattern = if s.is_empty() { "^$" } else { s };
+    Regex::new(pattern)?;
+    Regex::new(&format!(r"\A(?:{pattern})\z"))
 }
 
 #[derive(Debug, Options)]
@@ -133,6 +157,15 @@ pub struct CliOptions {
         short = "E"
     )]
     pub editable_file_mode: Option<u32>,
+
+    #[options(
+        help = "regex of top-level container directory names; empty matches none",
+        default = "",
+        parse(try_from_str = "parse_container_regex"),
+        short = "c",
+        no_multi
+    )]
+    pub container_regex: Regex,
 }
 
 pub fn parse_args() -> Result<CliOptions, String> {
@@ -192,6 +225,7 @@ pub fn collector_from_args(opts: CliOptions) -> crate::prometheus::PhotoBacklogC
         dir_mode: opts.dir_mode,
         raw_file_mode: opts.raw_file_mode,
         editable_file_mode: opts.editable_file_mode,
+        container_regex: opts.container_regex,
     }
 }
 
@@ -263,5 +297,32 @@ mod tests {
         assert_that!(&opts.raw_file_mode).is_equal_to(None);
         let expected_exts = vec![OsString::from("xmp"), OsString::from("info")];
         assert_that!(opts.ignored_exts).is_equal_to(expected_exts);
+        assert_that!(opts.container_regex.as_str()).is_equal_to(r"\A(?:^$)\z");
+    }
+
+    #[test]
+    fn test_container_regex_empty_and_valid() {
+        let temp_dir = tempdir().unwrap();
+        let temp_dir_str = temp_dir
+            .path()
+            .to_str()
+            .expect("convert temp dir path to str");
+        let empty = super::parse_args_from(&["--path", temp_dir_str, "--container-regex", ""])
+            .expect("empty container regex parses");
+        assert_that!(empty.container_regex.as_str()).is_equal_to(r"\A(?:^$)\z");
+        let year = super::parse_args_from(&["--path", temp_dir_str, "-c", r"^\d{4}$"])
+            .expect("container regex parses");
+        assert_that!(year.container_regex.as_str()).is_equal_to(r"\A(?:^\d{4}$)\z");
+    }
+
+    #[test]
+    fn test_container_regex_invalid() {
+        let temp_dir = tempdir().unwrap();
+        let temp_dir_str = temp_dir
+            .path()
+            .to_str()
+            .expect("convert temp dir path to str");
+        let opts = super::parse_args_from(&["--path", temp_dir_str, "--container-regex", "["]);
+        assert_that!(opts).is_err();
     }
 }

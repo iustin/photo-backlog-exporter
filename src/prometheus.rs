@@ -1,6 +1,8 @@
 use std::ffi::OsString;
 
 use std::path::PathBuf;
+
+use regex::Regex;
 use std::sync::atomic::AtomicU64;
 
 use std::time::Instant;
@@ -30,6 +32,7 @@ pub struct PhotoBacklogCollector {
     pub dir_mode: Option<u32>,
     pub raw_file_mode: Option<u32>,
     pub editable_file_mode: Option<u32>,
+    pub container_regex: Regex,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -77,6 +80,7 @@ impl Collector for PhotoBacklogCollector {
             dir_mode: self.dir_mode,
             raw_file_mode: self.raw_file_mode,
             editable_file_mode: self.editable_file_mode,
+            container_regex: &self.container_regex,
         };
 
         let mut backlog = super::Backlog::new(self.age_buckets.iter().copied());
@@ -248,6 +252,7 @@ mod tests {
             dir_mode: None,
             raw_file_mode: None,
             editable_file_mode: None,
+            container_regex: regex::Regex::new("^$").unwrap(),
         };
         let buffer = super::encode_to_text(collector).unwrap();
 

@@ -7,6 +7,7 @@ use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use log::{info, warn};
+use regex::Regex;
 use walkdir::WalkDir;
 
 use prometheus_client::encoding::{EncodeLabelValue, LabelValueEncoder};
@@ -61,6 +62,90 @@ pub fn first_dir(p: &Path) -> Option<PathBuf> {
 pub fn relative_top(root: &Path, p: &Path) -> Option<PathBuf> {
     let relative = p.strip_prefix(root).ok()?;
     first_dir(relative)
+}
+
+/// Folder key for a file under `root`.
+///
+/// `None` means the file sits in the scan root. A top-level directory
+/// whose name matches `container_re` is a container: the key is
+/// `container/child`, and anything deeper rolls into that child.
+/// `container_re` must already be a full-name match, as produced by
+/// `cli::parse_container_regex`. The default pattern matches no real
+/// directory name.
+///
+/// ```
+/// # use std::path::{Path, PathBuf};
+/// # use photo_backlog_exporter::cli::parse_container_regex;
+/// # use photo_backlog_exporter::folder_key;
+/// let year = parse_container_regex(r"\d{4}").unwrap();
+/// let flat = parse_container_regex("").unwrap();
+/// let root = Path::new("/incoming");
+/// assert!(folder_key(root, Path::new("/incoming/a.jpg"), &year).is_none());
+/// assert_eq!(
+///     folder_key(root, Path::new("/incoming/Trip/a.jpg"), &year),
+///     Some(PathBuf::from("Trip"))
+/// );
+/// assert_eq!(
+///     folder_key(root, Path::new("/incoming/Trip/Day 1/a.jpg"), &year),
+///     Some(PathBuf::from("Trip"))
+/// );
+/// assert_eq!(
+///     folder_key(root, Path::new("/incoming/2024/stray.jpg"), &year),
+///     Some(PathBuf::from("2024"))
+/// );
+/// assert_eq!(
+///     folder_key(root, Path::new("/incoming/2024/2024-01-01 Trip/a.jpg"), &year),
+///     Some(PathBuf::from("2024/2024-01-01 Trip"))
+/// );
+/// assert_eq!(
+///     folder_key(
+///         root,
+///         Path::new("/incoming/2024/2024-01-01 Trip/Day 1/a.jpg"),
+///         &year
+///     ),
+///     Some(PathBuf::from("2024/2024-01-01 Trip"))
+/// );
+/// assert_eq!(
+///     folder_key(root, Path::new("/incoming/2024/2025/event/a.jpg"), &year),
+///     Some(PathBuf::from("2024/2025"))
+/// );
+/// assert_eq!(
+///     folder_key(
+///         root,
+///         Path::new("/incoming/2024/2024-01-01 Trip/a.jpg"),
+///         &flat
+///     ),
+///     Some(PathBuf::from("2024"))
+/// );
+/// assert_eq!(
+///     folder_key(
+///         root,
+///         Path::new("/incoming/2024-01-01 Trip/Day 1/a.jpg"),
+///         &year
+///     ),
+///     Some(PathBuf::from("2024-01-01 Trip"))
+/// );
+/// ```
+pub fn folder_key(root: &Path, path: &Path, container_re: &Regex) -> Option<PathBuf> {
+    let relative = path.strip_prefix(root).ok()?;
+    let normals: Vec<PathBuf> = relative
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(s) => Some(PathBuf::from(s)),
+            _ => None,
+        })
+        .collect();
+    match normals.as_slice() {
+        [top, child, _, ..] if container_re.is_match(&top.to_string_lossy()) => {
+            Some(PathBuf::from(format!(
+                "{}/{}",
+                top.to_string_lossy(),
+                child.to_string_lossy()
+            )))
+        }
+        [top, _, ..] => Some(top.clone()),
+        _ => None,
+    }
 }
 
 /// Returns the age of a file relative to a given timestamp, or zero if the file is newer.
@@ -177,6 +262,7 @@ pub struct Config<'a> {
     pub dir_mode: Option<u32>,
     pub raw_file_mode: Option<u32>,
     pub editable_file_mode: Option<u32>,
+    pub container_regex: &'a Regex,
 }
 
 #[derive(Debug)]
@@ -308,8 +394,8 @@ impl Backlog {
                 self.record_error(ErrorType::Permissions);
             }
 
-            // Find owner top-level dir.
-            let parent = match relative_top(config.root_path, entry.path()) {
+            // Find the picture-event folder, descending into containers.
+            let parent = match folder_key(config.root_path, entry.path(), config.container_regex) {
                 Some(x) => x,
                 None => {
                     warn!(
@@ -363,6 +449,8 @@ mod tests {
     extern crate speculoos;
     use speculoos::prelude::*;
 
+    use regex::Regex;
+
     use crate::{Backlog, ROOT_FILE_DIR};
     use crate::{Config, ErrorType};
 
@@ -375,6 +463,7 @@ mod tests {
         pub ignored_exts: Vec<OsString>,
         pub raw_exts: Vec<OsString>,
         pub editable_exts: Vec<OsString>,
+        pub container_regex: Regex,
     }
 
     impl TestData {
@@ -403,6 +492,7 @@ mod tests {
                 dir_mode,
                 raw_file_mode,
                 editable_file_mode,
+                container_regex: &self.container_regex,
             }
         }
     }
@@ -423,6 +513,7 @@ mod tests {
             raw_exts: vec![OsString::from("nef")],
             editable_exts: vec![OsString::from("jpg")],
             editable_owners: vec![],
+            container_regex: Regex::new("^$").unwrap(),
         }
     }
 
@@ -754,5 +845,44 @@ mod tests {
         backlog.scan(&config);
         std::fs::set_permissions(temp_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
         check_backlog(&backlog, 0, 0, 3, 0, 0, 0);
+    }
+
+    fn mixed_tree(root: &Path) {
+        let event = root.join("2024").join("2024-01-01 Trip").join("Day 1");
+        std::fs::create_dir_all(&event).unwrap();
+        add_file(&event, "a.jpg");
+        add_file(&event, "b.jpg");
+        add_file(&root.join("2024"), "stray.jpg");
+        let sibling = root.join("2023-11-19 Some pictures");
+        std::fs::create_dir(&sibling).unwrap();
+        add_file(&sibling, "d.jpg");
+        add_file(root, "loose.jpg");
+        std::fs::create_dir(root.join("2023")).unwrap();
+    }
+
+    #[rstest]
+    fn container_regex_splits_matching_folders(test_data: TestData, mut backlog: Backlog) {
+        mixed_tree(test_data.temp_dir.path());
+        let re = Regex::new(r"^\d{4}$").unwrap();
+        let mut config = test_data.build_config(None, None, None, None, None);
+        config.container_regex = &re;
+        backlog.scan(&config);
+        check_backlog(&backlog, 4, 5, 0, 0, 0, 0);
+        check_has_dir_with(&backlog, "2024/2024-01-01 Trip", 2);
+        check_has_dir_with(&backlog, "2024", 1);
+        check_has_dir_with(&backlog, "2023-11-19 Some pictures", 1);
+        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
+        assert_that!(backlog.folders.contains_key("2023")).is_false();
+    }
+
+    #[rstest]
+    fn default_container_regex_stays_flat(test_data: TestData, mut backlog: Backlog) {
+        mixed_tree(test_data.temp_dir.path());
+        let config = test_data.build_config(None, None, None, None, None);
+        backlog.scan(&config);
+        check_backlog(&backlog, 3, 5, 0, 0, 0, 0);
+        check_has_dir_with(&backlog, "2024", 3);
+        check_has_dir_with(&backlog, "2023-11-19 Some pictures", 1);
+        check_has_dir_with(&backlog, ROOT_FILE_DIR, 1);
     }
 }
